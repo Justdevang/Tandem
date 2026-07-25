@@ -8,10 +8,14 @@ export interface IOrderItem {
 }
 
 export interface IOrder extends Document {
-  tableId: number;
+  tableId?: number;
+  orderType: 'dine-in' | 'takeaway';
+  pickupCode?: string;
   customerId?: Types.ObjectId;
   items: IOrderItem[];
   status: 'new' | 'firing' | 'ready' | 'served' | 'billed';
+  estimatedReadyAt?: Date;
+  etaMinutes?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,7 +32,13 @@ const orderItemSchema = new Schema<IOrderItem>(
 
 const orderSchema = new Schema<IOrder>(
   {
-    tableId: { type: Number, required: true },
+    tableId: { type: Number, required: false },
+    orderType: {
+      type: String,
+      enum: ['dine-in', 'takeaway'],
+      default: 'dine-in',
+    },
+    pickupCode: { type: String },
     customerId: { type: Schema.Types.ObjectId, ref: 'User' },
     items: { type: [orderItemSchema], required: true },
     status: {
@@ -36,6 +46,8 @@ const orderSchema = new Schema<IOrder>(
       enum: ['new', 'firing', 'ready', 'served', 'billed'],
       default: 'new',
     },
+    estimatedReadyAt: { type: Date },
+    etaMinutes: { type: Number },
   },
   { timestamps: true }
 );
