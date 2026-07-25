@@ -6,7 +6,6 @@ import ChatAssistant from '@/components/ChatAssistant'
 
 const categories = ['All', 'Starters', 'Mains', 'Breads', 'Desserts', 'Beverages']
 
-// Default table fallback capacities
 const defaultTables: Table[] = [
   { id: 1, capacity: 2, status: 'free' },
   { id: 2, capacity: 4, status: 'free' },
@@ -24,12 +23,20 @@ const defaultTables: Table[] = [
 
 export default function CustomerMenu() {
   const [active, setActive] = useState('All')
+  const [orderType, setOrderType] = useState<'dine-in' | 'takeaway'>('dine-in')
   const [selectedTable, setSelectedTable] = useState<number>(4)
   const [tablesList, setTablesList] = useState<Table[]>(defaultTables)
   const [cart, setCart] = useState<Record<string, number>>({})
   const [menuItems, setMenuItems] = useState<(MenuItem & { _id?: string; isAvailable?: boolean })[]>([])
   const [loading, setLoading] = useState(true)
-  const [orderPlaced, setOrderPlaced] = useState(false)
+  
+  // Order Confirmation State
+  const [orderConfirmation, setOrderConfirmation] = useState<{
+    pickupCode?: string
+    etaMinutes: number
+    tableId?: number
+    orderType: 'dine-in' | 'takeaway'
+  } | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
 
   // Fetch menu and tables on mount + listen for socket updates
@@ -138,13 +145,24 @@ export default function CustomerMenu() {
     }))
 
     try {
-      await api('/api/orders', {
+      const res = await api('/api/orders', {
         method: 'POST',
-        body: JSON.stringify({ tableId: selectedTable, items }),
+        body: JSON.stringify({
+          orderType,
+          tableId: orderType === 'dine-in' ? selectedTable : undefined,
+          items,
+        }),
       })
+
       setCart({})
-      setOrderPlaced(true)
-      setTimeout(() => setOrderPlaced(false), 3500)
+      setOrderConfirmation({
+        pickupCode: res.pickupCode,
+        etaMinutes: res.etaMinutes || 15,
+        tableId: selectedTable,
+        orderType,
+      })
+
+      setTimeout(() => setOrderConfirmation(null), 5000)
     } catch (err: any) {
       console.error('Failed to place order:', err)
       setErrorMessage(err.message || 'Failed to place order.')
@@ -154,30 +172,64 @@ export default function CustomerMenu() {
 
   return (
     <div className="min-h-full bg-porcelain text-ink pb-28">
-      {/* Header with Table & Seat Capacity Selection */}
-      <header className="border-b border-ink/10 px-6 pt-8 pb-6 md:px-12">
-        <div className="flex items-baseline justify-between">
+      {/* Header with Order Type Switcher & Table Selection */}
+      <header className="border-b border-ink/10 px-6 pt-6 pb-6 md:px-12">
+        <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[11px] tracking-[0.25em] text-steel uppercase">Select Table:</span>
-              <select
-                value={selectedTable}
-                onChange={(e) => setSelectedTable(Number(e.target.value))}
-                className="font-mono text-xs bg-porcelain border border-ink/20 rounded px-2.5 py-1 text-ink focus:outline-none focus:border-saffron font-semibold cursor-pointer"
-              >
-                {tablesList.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    Table {t.id} ({t.capacity} Seats)
-                  </option>
-                ))}
-              </select>
-              <span className="font-mono text-xs bg-saffron/15 text-saffron-deep px-2.5 py-0.5 rounded-sm font-semibold">
-                🪑 {currentTableObj.capacity} Seats
-              </span>
-              <span className="font-mono text-[11px] tracking-wider text-steel uppercase">&middot; Dine-in</span>
+            {/* Order Type Switcher: Dine-in vs Takeaway */}
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <div className="flex bg-ink/5 border border-ink/15 rounded-md p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setOrderType('dine-in')}
+                  className={`px-3 py-1 font-mono text-xs uppercase tracking-wide rounded-sm transition-colors ${
+                    orderType === 'dine-in'
+                      ? 'bg-ink text-porcelain font-semibold'
+                      : 'text-ink/60 hover:text-ink'
+                  }`}
+                >
+                  🍽️ Dine-in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderType('takeaway')}
+                  className={`px-3 py-1 font-mono text-xs uppercase tracking-wide rounded-sm transition-colors ${
+                    orderType === 'takeaway'
+                      ? 'bg-saffron text-ink font-semibold'
+                      : 'text-ink/60 hover:text-ink'
+                  }`}
+                >
+                  🛍️ Takeaway
+                </button>
+              </div>
+
+              {orderType === 'dine-in' ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] tracking-wider text-steel uppercase">Table:</span>
+                  <select
+                    value={selectedTable}
+                    onChange={(e) => setSelectedTable(Number(e.target.value))}
+                    className="font-mono text-xs bg-porcelain border border-ink/20 rounded px-2.5 py-1 text-ink focus:outline-none focus:border-saffron font-semibold cursor-pointer"
+                  >
+                    {tablesList.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        Table {t.id} ({t.capacity} Seats)
+                      </option>
+                    ))}
+                  </select>
+                  <span className="font-mono text-xs bg-saffron/15 text-saffron-deep px-2 py-0.5 rounded-sm font-semibold">
+                    🪑 {currentTableObj.capacity} Seats
+                  </span>
+                </div>
+              ) : (
+                <span className="font-mono text-xs bg-herb/15 text-herb px-2.5 py-1 rounded-sm font-semibold">
+                  🛍️ Express Pickup
+                </span>
+              )}
             </div>
-            <h1 className="font-display text-4xl md:text-5xl font-medium tracking-tight mt-1.5">Tandem</h1>
+            <h1 className="font-display text-4xl md:text-5xl font-medium tracking-tight">Tandem</h1>
           </div>
+
           <div className="text-right hidden sm:block">
             <p className="font-mono text-[11px] tracking-[0.2em] text-steel uppercase">Live menu</p>
             <div className="flex items-center gap-1.5 justify-end mt-1">
@@ -251,7 +303,7 @@ export default function CustomerMenu() {
                     <p className="font-mono text-sm mt-2 text-ink/80">&#8377;{item.price}</p>
                   </div>
 
-                  {/* Quantity controls: - 0 + */}
+                  {/* Quantity controls */}
                   <div className="shrink-0 flex items-center gap-2">
                     {available && itemCartQty > 0 ? (
                       <div className="flex items-center gap-2 border border-ink/20 rounded-full px-2 py-1 bg-white">
@@ -298,10 +350,26 @@ export default function CustomerMenu() {
         )}
       </main>
 
-      {/* Notifications */}
-      {orderPlaced && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-herb text-porcelain px-6 py-3 rounded-lg shadow-lg font-mono text-sm animate-in fade-in slide-in-from-top-2 duration-300">
-          ✓ Order placed for Table {selectedTable} ({currentTableObj.capacity} Seats)! Check the kitchen ticket rail.
+      {/* Queue-Aware Prep-Time ETA Order Confirmation Toast */}
+      {orderConfirmation && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 text-porcelain px-6 py-3.5 rounded-lg shadow-xl font-mono text-sm border animate-in fade-in slide-in-from-top-2 duration-300 flex items-center gap-3 ${
+            orderConfirmation.etaMinutes <= 20
+              ? 'bg-herb border-herb/40'
+              : 'bg-ink border-saffron/50 text-saffron'
+          }`}
+        >
+          <span className="text-base">✓</span>
+          <div>
+            <p className="font-semibold">
+              {orderConfirmation.orderType === 'takeaway'
+                ? `Takeaway Order #${orderConfirmation.pickupCode}`
+                : `Table ${orderConfirmation.tableId} Order Placed`}
+            </p>
+            <p className="text-xs opacity-90 mt-0.5">
+              Kitchen ETA: <strong className="underline">Ready in ~{orderConfirmation.etaMinutes} min</strong>
+            </p>
+          </div>
         </div>
       )}
 
@@ -323,7 +391,9 @@ export default function CustomerMenu() {
                 <span className="font-mono text-xs bg-porcelain/15 rounded-full h-6 w-6 grid place-items-center">
                   {cartCount}
                 </span>
-                Place order for Table {selectedTable} ({currentTableObj.capacity} Seats)
+                {orderType === 'takeaway'
+                  ? 'Place Takeaway Order'
+                  : `Place order for Table ${selectedTable}`}
               </span>
               <span className="font-mono">&#8377;{cartTotal}</span>
             </button>

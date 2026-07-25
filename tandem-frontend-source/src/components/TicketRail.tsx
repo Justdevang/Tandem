@@ -9,11 +9,14 @@ const columns: { key: TicketStatus; label: string }[] = [
   { key: 'ready', label: 'Ready' },
 ]
 
-function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string }; onAdvance: (id: string, status: string) => void }) {
+function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string; orderType?: string; pickupCode?: string; etaMinutes?: number; displayLabel?: string }; onAdvance: (id: string, status: string) => void }) {
   const urgent = ticket.elapsedMin >= 12 && ticket.status !== 'ready'
   const nextStatus: Record<string, string> = { new: 'firing', firing: 'ready', ready: 'served' }
   const nextLabel: Record<string, string> = { new: '→ Fire', firing: '→ Ready', ready: '→ Served' }
   const ticketTargetId = ticket._id || ticket.id
+
+  const isTakeaway = ticket.orderType === 'takeaway' || Boolean(ticket.pickupCode)
+  const labelText = ticket.displayLabel || (isTakeaway ? `TAKEAWAY · #${ticket.pickupCode}` : `Table ${ticket.table}`)
 
   return (
     <div
@@ -26,10 +29,14 @@ function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string }; 
       <div className="flex items-start justify-between border-b border-dashed border-ink/25 pb-2 mb-2">
         <div>
           <p className="tracking-wider text-[15px] font-semibold">{ticket.id}</p>
-          <p className="text-steel">Table {ticket.table}</p>
+          <p className={isTakeaway ? 'text-saffron-deep font-semibold text-xs' : 'text-steel'}>
+            {labelText}
+          </p>
         </div>
         <div className="text-right">
-          <p className={urgent ? 'text-brick font-semibold' : 'text-steel'}>{ticket.elapsedMin}m</p>
+          <p className={urgent ? 'text-brick font-semibold' : 'text-steel'}>
+            {ticket.elapsedMin}m {ticket.etaMinutes ? `/ ~${ticket.etaMinutes}m ETA` : ''}
+          </p>
           <p className="text-steel/70 text-[11px]">{ticket.firedAt}</p>
         </div>
       </div>
@@ -67,7 +74,7 @@ function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string }; 
 }
 
 export default function TicketRail() {
-  const [tickets, setTickets] = useState<(Ticket & { _id?: string })[]>([])
+  const [tickets, setTickets] = useState<(Ticket & { _id?: string; orderType?: string; pickupCode?: string; etaMinutes?: number; displayLabel?: string })[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchTickets = async () => {
@@ -91,7 +98,6 @@ export default function TicketRail() {
 
     socket.on('ticket:new', (ticket: any) => {
       setTickets((prev) => {
-        // Prevent duplicate
         const exists = prev.some((t) => (t._id || t.id) === (ticket._id || ticket.id))
         if (exists) return prev
         return [ticket, ...prev]
@@ -100,11 +106,9 @@ export default function TicketRail() {
 
     socket.on('ticket:updated', (updatedTicket: any) => {
       setTickets((prev) => {
-        // Remove if served/billed
         if (!['new', 'firing', 'ready'].includes(updatedTicket.status)) {
           return prev.filter((t) => (t._id || t.id) !== (updatedTicket._id || updatedTicket.id))
         }
-        // Update existing
         const exists = prev.some((t) => (t._id || t.id) === (updatedTicket._id || updatedTicket.id))
         if (exists) {
           return prev.map((t) =>
@@ -122,7 +126,6 @@ export default function TicketRail() {
   }, [])
 
   const advanceTicket = async (id: string, status: string) => {
-    // Optimistic UI update
     setTickets((prev) =>
       prev
         .map((t) => {
@@ -141,7 +144,6 @@ export default function TicketRail() {
       })
     } catch (err) {
       console.error('Failed to advance ticket:', err)
-      // Re-fetch on error to revert to true state
       fetchTickets()
     }
   }
