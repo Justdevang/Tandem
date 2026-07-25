@@ -8,6 +8,7 @@ export interface IMenuItem extends Document {
   imageUrl?: string;
   stockQty: number;
   reorderThreshold: number;
+  avgPrepMinutes: number;
   isAvailable: boolean; // virtual
   createdAt: Date;
   updatedAt: Date;
@@ -22,6 +23,7 @@ const menuItemSchema = new Schema<IMenuItem>(
     imageUrl: { type: String },
     stockQty: { type: Number, required: true, default: 0 },
     reorderThreshold: { type: Number, required: true, default: 5 },
+    avgPrepMinutes: { type: Number, required: true, default: 10 },
   },
   {
     timestamps: true,
@@ -31,7 +33,6 @@ const menuItemSchema = new Schema<IMenuItem>(
 );
 
 // isAvailable is ALWAYS derived — never stored directly.
-// This ensures it can never drift out of sync with stockQty.
 menuItemSchema.virtual('isAvailable').get(function (this: IMenuItem) {
   return this.stockQty > 0;
 });

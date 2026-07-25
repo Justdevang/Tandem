@@ -11,7 +11,7 @@ const router = Router();
 
 /**
  * Helper: format an Order document into the Ticket shape that
- * TicketRail.tsx expects: { id, _id, table, status, items, firedAt, elapsedMin }
+ * TicketRail.tsx expects
  */
 function orderToTicket(order: any) {
   const createdAt = order.createdAt ? new Date(order.createdAt) : new Date();
@@ -25,12 +25,21 @@ function orderToTicket(order: any) {
 
   const orderIdStr = order._id ? order._id.toString() : '';
   const shortId = orderIdStr ? orderIdStr.slice(-4).toUpperCase() : '0000';
+  const orderType = order.orderType || 'dine-in';
+  const pickupCode = order.pickupCode || '';
+  const estimatedReadyAt = order.estimatedReadyAt || new Date(Date.now() + 15 * 60000);
+  const etaMinutes = order.etaMinutes || 15;
 
   return {
     id: `T-${shortId}`,
     _id: orderIdStr,
-    table: order.tableId,
+    orderType,
+    pickupCode,
+    table: orderType === 'dine-in' ? order.tableId : undefined,
+    displayLabel: orderType === 'takeaway' ? `TAKEAWAY · #${pickupCode}` : `Table ${order.tableId}`,
     status: order.status || 'new',
+    estimatedReadyAt,
+    etaMinutes,
     items: Array.isArray(order.items)
       ? order.items.map((it: any) => ({
           name: it.name,
@@ -46,19 +55,25 @@ function orderToTicket(order: any) {
 /**
  * POST /api/orders
  * ═══════════════════════════════════════════════════════════
- * THE CORE REAL-TIME CHAIN
+ * THE CORE REAL-TIME CHAIN with Takeaway & Queue-Aware Prep-Time ETA
  * ═══════════════════════════════════════════════════════════
  */
 router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { tableId, items } = req.body;
+    const { tableId, items, orderType: rawOrderType } = req.body;
+    const orderType: 'dine-in' | 'takeaway' = rawOrderType === 'takeaway' ? 'takeaway' : 'dine-in';
 
-    if (!tableId || !items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'tableId and items[] are required' });
+    if (orderType === 'dine-in' && !tableId) {
+      res.status(400).json({ error: 'tableId is required for dine-in orders' });
       return;
     }
 
-    // Consolidated line items (combine duplicate menuItemIds)
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'items[] array is required' });
+      return;
+    }
+
+    // Consolidated line items
     const consolidatedMap = new Map<string, { menuItemId: string; qty: number; notes?: string }>();
     for (const item of items) {
       if (!item.menuItemId || !item.qty || item.qty <= 0) continue;
@@ -77,8 +92,9 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Resolve menu items and validate stock
+    // Resolve menu items, check stock & track prep times
     const orderItems = [];
+    let maxPrepMinutes = 5;
 
     for (const item of consolidatedItems) {
       const menuItem = await MenuItem.findById(item.menuItemId);
@@ -92,6 +108,12 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         });
         return;
       }
+
+      const prepTime = menuItem.avgPrepMinutes || (menuItem.category === 'Mains' ? 15 : menuItem.category === 'Starters' ? 10 : 5);
+      if (prepTime > maxPrepMinutes) {
+        maxPrepMinutes = prepTime;
+      }
+
       orderItems.push({
         menuItemId: menuItem._id,
         name: menuItem.name,
@@ -100,14 +122,30 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       });
     }
 
+    // Compute Queue-Aware Prep-Time ETA
+    const activeTicketCount = await Order.countDocuments({ status: { $in: ['new', 'firing'] } });
+    const queueDelayMinutes = activeTicketCount * 2; // 2 min per ticket ahead in queue
+    const totalEtaMinutes = maxPrepMinutes + queueDelayMinutes;
+    const estimatedReadyAt = new Date(Date.now() + totalEtaMinutes * 60000);
+
+    // Generate 4-digit pickup code for takeaway orders
+    let pickupCode: string | undefined = undefined;
+    if (orderType === 'takeaway') {
+      pickupCode = String(Math.floor(1000 + Math.random() * 9000));
+    }
+
     // 1. Create Order
     const order = await Order.create({
-      tableId: Number(tableId),
+      orderType,
+      tableId: orderType === 'dine-in' ? Number(tableId) : undefined,
+      pickupCode,
       items: orderItems,
       status: 'new',
+      estimatedReadyAt,
+      etaMinutes: totalEtaMinutes,
     });
 
-    // 2. Decrement stock & record InventoryLog (ensuring non-negative stock)
+    // 2. Decrement stock & record InventoryLog
     for (const item of orderItems) {
       await InventoryLog.create({
         menuItemId: item.menuItemId,
@@ -121,15 +159,16 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
         { new: true }
       );
 
-      // Clamp stockQty to minimum 0 to prevent negative stock values
       if (updatedMenuItem && updatedMenuItem.stockQty < 0) {
         updatedMenuItem.stockQty = 0;
         await updatedMenuItem.save();
       }
     }
 
-    // 3. Mark table as occupied
-    await Table.findOneAndUpdate({ number: Number(tableId) }, { status: 'occupied' });
+    // 3. Mark table as occupied (only for dine-in orders)
+    if (orderType === 'dine-in' && tableId) {
+      await Table.findOneAndUpdate({ number: Number(tableId) }, { status: 'occupied' });
+    }
 
     // 4. Broadcast updated menu & inventory to all clients
     const updatedMenu = await MenuItem.find().sort({ category: 1, name: 1 });
@@ -151,7 +190,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     }));
     io.emit('tables:updated', mappedTables);
 
-    res.status(201).json({ order, ticket });
+    res.status(201).json({ order, ticket, etaMinutes: totalEtaMinutes, estimatedReadyAt, pickupCode });
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ error: 'Failed to create order' });
@@ -198,7 +237,6 @@ router.patch('/:id/status', verifyToken, requireRole('staff', 'admin'), async (r
     }
 
     if (!order) {
-      // Fallback search by formatted ID string (e.g. T-0231)
       const allOrders = await Order.find();
       order = allOrders.find(
         (o) =>
@@ -218,8 +256,8 @@ router.patch('/:id/status', verifyToken, requireRole('staff', 'admin'), async (r
     const ticket = orderToTicket(order);
     io.emit('ticket:updated', ticket);
 
-    // If served, mark table as billing
-    if (status === 'served') {
+    // If served, mark table as billing (only for dine-in orders with tableId)
+    if (status === 'served' && order.orderType === 'dine-in' && order.tableId) {
       await Table.findOneAndUpdate({ number: order.tableId }, { status: 'billing' });
       const updatedTables = await Table.find().sort({ number: 1 });
       const mappedTables = updatedTables.map((t) => ({

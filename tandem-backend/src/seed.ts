@@ -6,18 +6,18 @@ import { connectDB } from './config/db.js';
 import { MenuItem } from './models/MenuItem.js';
 import { Table } from './models/Table.js';
 
-// ── Menu items from mock.ts — exact field names ─────────────────────
+// ── Menu items from mock.ts with avgPrepMinutes per category ─────────
 const menuItems = [
-  { name: 'Paneer Tikka Masala', description: 'Charred cottage cheese, tomato-cashew gravy, kasuri methi', price: 320, category: 'Mains', stockQty: 2, reorderThreshold: 5 },
-  { name: 'Butter Chicken', description: 'Tandoor-roasted chicken, tomato butter sauce', price: 380, category: 'Mains', stockQty: 14, reorderThreshold: 6 },
-  { name: 'Dal Tadka', description: 'Yellow lentils, cumin-garlic tempering, fresh coriander', price: 220, category: 'Mains', stockQty: 0, reorderThreshold: 5 },
-  { name: 'Malabar Fish Curry', description: 'Kingfish, coconut, kokum, curry leaf', price: 420, category: 'Mains', stockQty: 9, reorderThreshold: 4 },
-  { name: 'Tandoori Roti', description: 'Whole wheat, charcoal tandoor', price: 45, category: 'Breads', stockQty: 40, reorderThreshold: 15 },
-  { name: 'Garlic Naan', description: 'Maida, roasted garlic, coriander butter', price: 65, category: 'Breads', stockQty: 3, reorderThreshold: 10 },
-  { name: 'Hara Bhara Kebab', description: 'Spinach, green peas, potato, mint chutney', price: 240, category: 'Starters', stockQty: 11, reorderThreshold: 5 },
-  { name: 'Amritsari Fish Fry', description: 'Basa, carom seed batter, ajwain', price: 310, category: 'Starters', stockQty: 6, reorderThreshold: 4 },
-  { name: 'Gulab Jamun', description: 'Khoya dumplings, cardamom syrup, rabri', price: 140, category: 'Desserts', stockQty: 18, reorderThreshold: 8 },
-  { name: 'Masala Chai', description: 'Assam CTC, ginger, clove, star anise', price: 60, category: 'Beverages', stockQty: 50, reorderThreshold: 20 },
+  { name: 'Paneer Tikka Masala', description: 'Charred cottage cheese, tomato-cashew gravy, kasuri methi', price: 320, category: 'Mains', stockQty: 2, reorderThreshold: 5, avgPrepMinutes: 15 },
+  { name: 'Butter Chicken', description: 'Tandoor-roasted chicken, tomato butter sauce', price: 380, category: 'Mains', stockQty: 14, reorderThreshold: 6, avgPrepMinutes: 15 },
+  { name: 'Dal Tadka', description: 'Yellow lentils, cumin-garlic tempering, fresh coriander', price: 220, category: 'Mains', stockQty: 0, reorderThreshold: 5, avgPrepMinutes: 12 },
+  { name: 'Malabar Fish Curry', description: 'Kingfish, coconut, kokum, curry leaf', price: 420, category: 'Mains', stockQty: 9, reorderThreshold: 4, avgPrepMinutes: 18 },
+  { name: 'Tandoori Roti', description: 'Whole wheat, charcoal tandoor', price: 45, category: 'Breads', stockQty: 40, reorderThreshold: 15, avgPrepMinutes: 5 },
+  { name: 'Garlic Naan', description: 'Maida, roasted garlic, coriander butter', price: 65, category: 'Breads', stockQty: 3, reorderThreshold: 10, avgPrepMinutes: 6 },
+  { name: 'Hara Bhara Kebab', description: 'Spinach, green peas, potato, mint chutney', price: 240, category: 'Starters', stockQty: 11, reorderThreshold: 5, avgPrepMinutes: 10 },
+  { name: 'Amritsari Fish Fry', description: 'Basa, carom seed batter, ajwain', price: 310, category: 'Starters', stockQty: 6, reorderThreshold: 4, avgPrepMinutes: 12 },
+  { name: 'Gulab Jamun', description: 'Khoya dumplings, cardamom syrup, rabri', price: 140, category: 'Desserts', stockQty: 18, reorderThreshold: 8, avgPrepMinutes: 5 },
+  { name: 'Masala Chai', description: 'Assam CTC, ginger, clove, star anise', price: 60, category: 'Beverages', stockQty: 50, reorderThreshold: 20, avgPrepMinutes: 3 },
 ];
 
 // ── Tables from mock.ts ─────────────────────────────────────────────
@@ -55,7 +55,7 @@ async function seed() {
   // Print menu items with their MongoDB IDs for reference
   console.log('\n── Menu Item IDs ──');
   for (const item of insertedItems) {
-    console.log(`  ${item.name}: ${item._id} (stock: ${item.stockQty}, available: ${item.isAvailable})`);
+    console.log(`  ${item.name}: ${item._id} (prep: ${item.avgPrepMinutes}m, stock: ${item.stockQty})`);
   }
 
   await mongoose.disconnect();
