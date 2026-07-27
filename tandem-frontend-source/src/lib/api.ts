@@ -1,7 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+import { auth } from './firebase';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 /**
- * Shared API helper that attaches Firebase auth token to requests.
+ * Shared API helper that attaches Firebase auth token to requests using cached token.
  */
 export async function api<T = any>(
   path: string,
@@ -9,16 +11,14 @@ export async function api<T = any>(
 ): Promise<T> {
   const url = `${API_URL}${path}`;
 
-  // Try to get Firebase token if user is logged in
   let token: string | null = null;
   try {
-    const { getAuth } = await import('firebase/auth');
-    const auth = getAuth();
-    if (auth.currentUser) {
-      token = await auth.currentUser.getIdToken();
+    if (auth?.currentUser) {
+      // Use cached token (false parameter) so API call never blocks on network refresh
+      token = await auth.currentUser.getIdToken(false).catch(() => null);
     }
   } catch {
-    // Firebase not initialized yet — that's okay for public routes
+    // Public fallback
   }
 
   const headers: Record<string, string> = {

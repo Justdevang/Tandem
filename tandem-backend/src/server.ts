@@ -19,7 +19,7 @@ import { initKitchenLoadService } from './services/kitchenLoad.js';
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 // ── Express setup ──────────────────────────────────────────────────
