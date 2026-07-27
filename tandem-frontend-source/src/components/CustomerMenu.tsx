@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { Utensils, ShoppingBag, Users, Zap, Clock, FileText, CreditCard, Sparkles, AlertTriangle, CheckCircle2, User, Phone } from 'lucide-react'
 import { type MenuItem, type Table } from '@/data/mock'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
-import ChatAssistant from '@/components/ChatAssistant'
-import InvoiceModal, { type InvoiceData } from '@/components/InvoiceModal'
+import type { InvoiceData } from '@/components/InvoiceModal'
+
+const ChatAssistant = lazy(() => import('@/components/ChatAssistant'))
+const InvoiceModal = lazy(() => import('@/components/InvoiceModal'))
 
 const categories = ['All', 'Starters', 'Soups', 'Mains', 'Rice & Biryani', 'Breads', 'South Indian', 'Accompaniments', 'Desserts', 'Beverages']
 
@@ -457,6 +459,7 @@ export default function CustomerMenu() {
                   <select
                     value={selectedTable}
                     onChange={(e) => setSelectedTable(Number(e.target.value))}
+                    aria-label="Select table number"
                     className="font-mono text-xs bg-white border border-ink/20 rounded px-3 py-1 text-ink focus:outline-none focus:border-saffron font-semibold cursor-pointer shadow-sm"
                   >
                     {tablesList.map((t) => (
@@ -642,7 +645,7 @@ export default function CustomerMenu() {
       )}
 
       {/* Category rail */}
-      <nav className="sticky top-0 z-10 bg-porcelain/95 backdrop-blur border-b border-ink/10 px-6 md:px-12 py-3 overflow-x-auto">
+      <nav aria-label="Menu categories" className="sticky top-0 z-10 bg-porcelain/95 backdrop-blur border-b border-ink/10 px-6 md:px-12 py-3 overflow-x-auto">
         <div className="max-w-7xl mx-auto flex gap-2 min-w-max">
           {categories.map((c) => (
             <button
@@ -909,27 +912,36 @@ export default function CustomerMenu() {
       )}
 
       {/* Chat Assistant */}
-      <ChatAssistant
-        menuItems={menuItems}
-        onAddToCart={handleAddItemsFromChat}
-        onPlaceOrder={placeOrder}
-      />
+      <Suspense fallback={null}>
+        <ChatAssistant
+          menuItems={menuItems}
+          onAddToCart={handleAddItemsFromChat}
+          onPlaceOrder={placeOrder}
+        />
+      </Suspense>
 
       {/* Customer Invoice Modal */}
       {activeCustomerInvoice && (
-        <InvoiceModal
-          invoice={activeCustomerInvoice}
-          onClose={() => setActiveCustomerInvoice(null)}
-          onPaid={() => {
-            setActiveOrder((prev) => (prev ? { ...prev, isPaid: true, status: 'billed' } : null))
-            setActiveCustomerInvoice((prev) => (prev ? { ...prev, isPaid: true } : null))
-          }}
-        />
+        <Suspense fallback={null}>
+          <InvoiceModal
+            invoice={activeCustomerInvoice}
+            onClose={() => setActiveCustomerInvoice(null)}
+            onPaid={() => {
+              setActiveOrder((prev) => (prev ? { ...prev, isPaid: true, status: 'billed' } : null))
+              setActiveCustomerInvoice((prev) => (prev ? { ...prev, isPaid: true } : null))
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Customer Details Popup Modal */}
       {showCustomerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="customer-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-in fade-in duration-200"
+        >
           <div className="bg-white border border-ink/10 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-saffron/15 text-saffron-deep flex items-center justify-center shrink-0">
@@ -937,7 +949,7 @@ export default function CustomerMenu() {
               </div>
               <div>
                 <p className="font-mono text-[10px] uppercase tracking-wider text-steel">Welcome to Tandem</p>
-                <h3 className="font-display text-2xl font-bold text-ink leading-tight">Enter Your Details</h3>
+                <h3 id="customer-modal-title" className="font-display text-2xl font-bold text-ink leading-tight">Enter Your Details</h3>
               </div>
             </div>
 
@@ -947,28 +959,32 @@ export default function CustomerMenu() {
 
             <form onSubmit={handleSaveCustomerInfo} className="space-y-4">
               <div>
-                <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1 font-semibold flex items-center gap-1.5">
+                <label htmlFor="customerName" className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1 font-semibold flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-steel" /> Customer Name
                 </label>
                 <input
+                  id="customerName"
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="e.g. Rahul Sharma"
+                  aria-label="Customer Name"
                   className="w-full border border-ink/15 rounded-lg px-3.5 py-2.5 text-sm bg-porcelain text-ink focus:outline-none focus:border-saffron transition-colors"
                   required
                 />
               </div>
 
               <div>
-                <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1 font-semibold flex items-center gap-1.5">
+                <label htmlFor="customerPhone" className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1 font-semibold flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5 text-steel" /> Mobile Number
                 </label>
                 <input
+                  id="customerPhone"
                   type="tel"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   placeholder="e.g. +91 98765 43210"
+                  aria-label="Mobile Number"
                   className="w-full border border-ink/15 rounded-lg px-3.5 py-2.5 text-sm bg-porcelain text-ink focus:outline-none focus:border-saffron transition-colors"
                   required
                 />

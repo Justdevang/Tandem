@@ -231,14 +231,18 @@ export default function ChatAssistant({ menuItems = [], onAddToCart, onPlaceOrde
   }
 
   return (
-    <div className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white border border-ink/10 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden font-sans">
+    <div
+      role="dialog"
+      aria-label="Interactive Dining Assistant Chat"
+      className="fixed bottom-24 right-6 z-50 w-80 sm:w-96 bg-white border border-ink/10 rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden font-sans"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-ink/10 bg-porcelain">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-herb animate-pulse" />
           <div>
             <p className="font-mono text-[10px] tracking-wider uppercase text-steel">Tandem AI</p>
-            <p className="text-sm font-medium text-ink">Interactive Dining Assistant</p>
+            <h2 className="text-sm font-medium text-ink">Interactive Dining Assistant</h2>
           </div>
         </div>
         <button
@@ -352,11 +356,13 @@ export default function ChatAssistant({ menuItems = [], onAddToCart, onPlaceOrde
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question or pick a category..."
+          aria-label="Ask a question to dining assistant"
           className="flex-1 border border-ink/15 rounded-lg px-3 py-2 text-xs bg-white text-ink focus:outline-none focus:border-saffron transition-colors"
         />
         <button
           type="submit"
           disabled={loading || !input.trim()}
+          aria-label="Send message to dining assistant"
           className="bg-saffron text-ink px-3 py-2 rounded-lg font-mono text-xs font-bold uppercase tracking-wide hover:bg-saffron-deep hover:text-porcelain transition-colors disabled:opacity-40 cursor-pointer"
         >
           Send

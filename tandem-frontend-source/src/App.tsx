@@ -1,10 +1,11 @@
-import { useState, useEffect, Component, type ReactNode } from 'react'
+import { useState, useEffect, Component, lazy, Suspense, type ReactNode } from 'react'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { signOut } from '@/lib/auth'
 import CustomerMenu from '@/components/CustomerMenu'
-import StaffDashboard from '@/components/StaffDashboard'
 import StaffRoute from '@/components/StaffRoute'
-import AuthScreen from '@/components/AuthScreen'
+
+const StaffDashboard = lazy(() => import('@/components/StaffDashboard'))
+const AuthScreen = lazy(() => import('@/components/AuthScreen'))
 
 type RoutePath = '/menu' | '/staff' | '/login'
 
@@ -31,7 +32,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="mt-6 bg-ink text-porcelain font-mono text-xs uppercase tracking-wide px-4 py-2.5 rounded hover:bg-steel-dark transition-colors cursor-pointer"
+              className="mt-6 font-mono text-xs uppercase tracking-wide bg-ink text-porcelain px-4 py-2 rounded hover:bg-steel-dark transition-colors cursor-pointer"
             >
               Reload Application
             </button>
@@ -143,7 +144,9 @@ function AppContent() {
       return (
         <div className="h-screen w-full flex flex-col font-sans">
           <div className="flex-1 min-h-0">
-            <AuthScreen />
+            <Suspense fallback={<div className="h-full w-full flex items-center justify-center bg-porcelain font-mono text-xs text-steel">Loading Auth...</div>}>
+              <AuthScreen />
+            </Suspense>
           </div>
         </div>
       )
@@ -158,7 +161,9 @@ function AppContent() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {currentPath.startsWith('/staff') ? (
           <StaffRoute onRedirectToMenu={() => navigate('/menu')}>
-            <StaffDashboard />
+            <Suspense fallback={<div className="h-full w-full flex items-center justify-center bg-porcelain font-mono text-xs text-steel">Loading Dashboard...</div>}>
+              <StaffDashboard />
+            </Suspense>
           </StaffRoute>
         ) : (
           <CustomerMenu />

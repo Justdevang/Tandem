@@ -86,12 +86,17 @@ export default function InvoiceModal({ invoice, onClose, onPaid }: InvoiceModalP
   const isOrderComplete = invoice.isComplete !== false
 
   return (
-    <div className="fixed inset-0 z-50 bg-ink/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="invoice-title"
+      className="fixed inset-0 z-50 bg-ink/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+    >
       <div className="relative w-full max-w-md bg-paper text-ink font-mono p-6 rounded-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         {/* Receipt Jagged Edge Top */}
         <div className="border-b-2 border-dashed border-ink/20 pb-4 mb-4 text-center">
           <p className="text-[10px] tracking-[0.3em] uppercase text-steel">Tax Invoice & Receipt</p>
-          <h2 className="font-display text-3xl font-bold tracking-tight text-ink mt-0.5">Tandem</h2>
+          <h2 id="invoice-title" className="font-display text-3xl font-bold tracking-tight text-ink mt-0.5">Tandem</h2>
           <p className="text-[11px] text-steel/80 mt-0.5">GSTIN: 27AABCU9603R1ZM &middot; FSSAI: 11521001000342</p>
 
           <div className="flex justify-between items-center text-xs text-steel mt-3 pt-2 border-t border-ink/10">
