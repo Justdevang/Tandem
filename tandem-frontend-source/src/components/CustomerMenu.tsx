@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Utensils, ShoppingBag, Users, Zap, Clock, FileText, CreditCard, Sparkles, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Utensils, ShoppingBag, Users, Zap, Clock, FileText, CreditCard, Sparkles, AlertTriangle, CheckCircle2, User, Phone } from 'lucide-react'
 import { type MenuItem, type Table } from '@/data/mock'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 import ChatAssistant from '@/components/ChatAssistant'
 import InvoiceModal, { type InvoiceData } from '@/components/InvoiceModal'
 
-const categories = ['All', 'Starters', 'Mains', 'Breads', 'Desserts', 'Beverages']
+const categories = ['All', 'Starters', 'Soups', 'Mains', 'Rice & Biryani', 'Breads', 'South Indian', 'Accompaniments', 'Desserts', 'Beverages']
 
 const defaultTables: Table[] = [
   { id: 1, capacity: 2, status: 'free' },
@@ -25,8 +25,11 @@ const defaultTables: Table[] = [
 
 // Preset Taste Preferences per Category
 const getPresetsForCategory = (category: string): string[] => {
-  if (category === 'Starters' || category === 'Mains') {
+  if (['Starters', 'Soups', 'Mains', 'Rice & Biryani', 'South Indian'].includes(category)) {
     return ['🌶️ Medium Spicy', '🔥 Extra Spicy', '🌿 Less Oil', '🧅 No Onion-Garlic']
+  }
+  if (category === 'Breads') {
+    return ['🧈 Extra Butter', '🔥 Well Done / Crispy', '🌿 Plain / No Butter']
   }
   if (category === 'Beverages') {
     return ['🧊 Less Ice', '🍬 Less Sugar', '🥛 Extra Milk']
@@ -68,6 +71,48 @@ export default function CustomerMenu() {
   const [errorMessage, setErrorMessage] = useState('')
   const [orderSuccessMessage, setOrderSuccessMessage] = useState('')
 
+  // Customer info state & popup modal
+  const [customerName, setCustomerName] = useState<string>(() => localStorage.getItem('tandem_customer_name') || '')
+  const [customerPhone, setCustomerPhone] = useState<string>(() => localStorage.getItem('tandem_customer_phone') || '')
+  const [showCustomerModal, setShowCustomerModal] = useState<boolean>(() => {
+    const name = localStorage.getItem('tandem_customer_name')
+    const phone = localStorage.getItem('tandem_customer_phone')
+    return !name && !phone
+  })
+
+  const handleSaveCustomerInfo = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (customerName.trim()) localStorage.setItem('tandem_customer_name', customerName.trim())
+    if (customerPhone.trim()) localStorage.setItem('tandem_customer_phone', customerPhone.trim())
+    setShowCustomerModal(false)
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {})
+    }
+  }
+
+  // Helper to send native OS Web Browser Notifications directly from Customer Menu
+  const sendBrowserNotification = (title: string, body: string) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, { body, icon: '/favicon.ico' })
+        } catch (e) {
+          console.warn('Could not trigger browser notification:', e)
+        }
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then((perm) => {
+          if (perm === 'granted') {
+            try {
+              new Notification(title, { body, icon: '/favicon.ico' })
+            } catch (e) {
+              console.warn('Could not trigger browser notification:', e)
+            }
+          }
+        }).catch(() => {})
+      }
+    }
+  }
+
   // Fetch menu, tables, and kitchen load on mount + listen for socket updates
   useEffect(() => {
     const fetchData = async () => {
@@ -99,7 +144,6 @@ export default function CustomerMenu() {
 
     socket.on('kitchen:load-updated', (data: any) => {
       if (data) setKitchenLoad(data)
-      api<any[]>('/api/menu').then((items) => setMenuItems(items)).catch(() => {})
     })
 
     socket.on('menu:updated', (data: any[]) => {
@@ -122,14 +166,45 @@ export default function CustomerMenu() {
       }
     })
 
+    const isOrderMatch = (current: any, target: any) => {
+      if (!current || !target) return false
+
+      const currId = String(current._id || current.id || '').toLowerCase().trim()
+      const currTicketId = String(current.id || '').toLowerCase().trim()
+      const targetId = String(target._id || target.id || '').toLowerCase().trim()
+      const targetTicketId = String(target.id || target._id || '').toLowerCase().trim()
+
+      if (currId && (currId === targetId || currId === targetTicketId)) return true
+      if (currTicketId && (currTicketId === targetId || currTicketId === targetTicketId)) return true
+
+      if (current.orderType === 'dine-in' || target.orderType === 'dine-in') {
+        const currTable = String(current.tableId ?? '').trim()
+        const targetTable = String(target.tableId ?? target.table ?? '').trim()
+        if (currTable && targetTable && currTable === targetTable) return true
+      }
+
+      if (current.orderType === 'takeaway' || target.orderType === 'takeaway') {
+        const currCode = String(current.pickupCode || '').toUpperCase().trim()
+        const targetCode = String(target.pickupCode || '').toUpperCase().trim()
+        if (currCode && targetCode && currCode === targetCode) return true
+      }
+
+      return false
+    }
+
     socket.on('ticket:updated', (ticket: any) => {
       setActiveOrder((current) => {
         if (!current) return null
-        const matchesId = (current._id && current._id === ticket._id) || (current.id && current.id === ticket.id)
-        const matchesTable = current.orderType === 'dine-in' && current.tableId === ticket.table
-        const matchesCode = current.orderType === 'takeaway' && current.pickupCode === ticket.pickupCode
-
-        if (matchesId || matchesTable || matchesCode) {
+        if (isOrderMatch(current, ticket)) {
+          if (ticket.status === 'cancelled') {
+            setErrorMessage('⚠️ Your order was cancelled by the kitchen staff.')
+            sendBrowserNotification('Tandem - Order Cancelled ⚠️', 'Your order was cancelled by the kitchen staff. Please check with staff or place a new order.')
+            setTimeout(() => setErrorMessage(''), 10000)
+          } else if (ticket.status === 'ready') {
+            sendBrowserNotification('Tandem - Order Ready! 🔥', 'Your order is hot and ready!')
+          } else if (ticket.status === 'served') {
+            sendBrowserNotification('Tandem - Order Served! 🥗', 'Your order has been served. Enjoy your meal!')
+          }
           return {
             ...current,
             status: ticket.status,
@@ -161,10 +236,39 @@ export default function CustomerMenu() {
       })
     })
 
+    socket.on('ticket:cancelled', (cancelledOrder: any) => {
+      setActiveOrder((current) => {
+        if (!current) return null
+        if (isOrderMatch(current, cancelledOrder)) {
+          setErrorMessage('⚠️ Your order was cancelled by the kitchen staff.')
+          sendBrowserNotification('Tandem - Order Cancelled ⚠️', 'Your order was cancelled by the kitchen staff. Please check with staff or place a new order.')
+          setTimeout(() => setErrorMessage(''), 10000)
+          return { ...current, status: 'cancelled' }
+        }
+        return current
+      })
+    })
+
+    socket.on('ticket:deleted', (deletedTicket: any) => {
+      setActiveOrder((current) => {
+        if (!current) return null
+        if (isOrderMatch(current, deletedTicket)) {
+          setErrorMessage('⚠️ Your order was cancelled by the kitchen staff.')
+          sendBrowserNotification('Tandem - Order Cancelled ⚠️', 'Your order was cancelled by the kitchen staff. Please check with staff or place a new order.')
+          setTimeout(() => setErrorMessage(''), 10000)
+          return { ...current, status: 'cancelled' }
+        }
+        return current
+      })
+    })
+
     return () => {
+      socket.off('kitchen:load-updated')
       socket.off('menu:updated')
       socket.off('tables:updated')
       socket.off('ticket:updated')
+      socket.off('ticket:cancelled')
+      socket.off('ticket:deleted')
       socket.off('bill:paid')
     }
   }, [])
@@ -238,6 +342,8 @@ export default function CustomerMenu() {
     }))
 
     const existingSessionId = sessionStorage.getItem(`tandem_sess_t${selectedTable}`) || undefined
+    const finalCustomerName = customerName || localStorage.getItem('tandem_customer_name') || undefined
+    const finalCustomerPhone = customerPhone || localStorage.getItem('tandem_customer_phone') || undefined
 
     try {
       const res = await api('/api/orders', {
@@ -245,6 +351,8 @@ export default function CustomerMenu() {
         body: JSON.stringify({
           orderType,
           tableId: orderType === 'dine-in' ? selectedTable : undefined,
+          customerName: finalCustomerName,
+          customerPhone: finalCustomerPhone,
           sessionId: existingSessionId,
           items,
         }),
@@ -272,6 +380,7 @@ export default function CustomerMenu() {
           : `✓ Order placed for Table ${selectedTable}! Kitchen ETA ~${res.etaMinutes || 15} min.`
 
       setOrderSuccessMessage(successText)
+      sendBrowserNotification('Tandem - Order Confirmed! 🍽️', successText)
       setTimeout(() => setOrderSuccessMessage(''), 5000)
     } catch (err: any) {
       console.error('Failed to place order:', err)
@@ -361,6 +470,19 @@ export default function CustomerMenu() {
                   </span>
                 </div>
               )}
+
+              {/* Customer Info Edit Badge Button */}
+              <button
+                type="button"
+                onClick={() => setShowCustomerModal(true)}
+                className="font-mono text-xs bg-white border border-ink/20 hover:border-saffron px-3 py-1 rounded text-ink flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                title="Edit Customer Details"
+              >
+                <User className="w-3.5 h-3.5 text-steel" />
+                <span className="font-semibold">
+                  {customerName ? `${customerName}${customerPhone ? ` (${customerPhone})` : ''}` : 'Enter Details'}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -392,20 +514,24 @@ export default function CustomerMenu() {
 
       {/* Persistent Live Order Tracker Banner */}
       {activeOrder && (
-        <div className="bg-ink text-porcelain px-6 py-4 border-b border-saffron/40 flex items-center justify-between font-mono text-sm animate-in fade-in duration-300">
+        <div className={`px-6 py-4 border-b flex items-center justify-between font-mono text-sm animate-in fade-in duration-300 ${
+          activeOrder.status === 'cancelled'
+            ? 'bg-brick text-porcelain border-brick-deep'
+            : 'bg-ink text-porcelain border-saffron/40'
+        }`}>
           <div className="flex items-center gap-3">
             <span className="relative flex h-3 w-3">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
-                activeOrder.isPaid
-                  ? 'bg-herb'
-                  : activeOrder.status === 'served' || activeOrder.status === 'billed'
+                activeOrder.status === 'cancelled'
+                  ? 'bg-porcelain'
+                  : activeOrder.isPaid || activeOrder.status === 'served' || activeOrder.status === 'billed'
                   ? 'bg-herb'
                   : 'bg-saffron'
               } opacity-75`}></span>
               <span className={`relative inline-flex rounded-full h-3 w-3 ${
-                activeOrder.isPaid
-                  ? 'bg-herb'
-                  : activeOrder.status === 'served' || activeOrder.status === 'billed'
+                activeOrder.status === 'cancelled'
+                  ? 'bg-porcelain'
+                  : activeOrder.isPaid || activeOrder.status === 'served' || activeOrder.status === 'billed'
                   ? 'bg-herb'
                   : 'bg-saffron'
               }`}></span>
@@ -414,10 +540,15 @@ export default function CustomerMenu() {
               <p className="font-semibold text-sm">
                 {activeOrder.orderType === 'takeaway'
                   ? `Takeaway Order #${activeOrder.pickupCode}`
-                  : `Table ${activeOrder.tableId} Order Active`}
+                  : `Table ${activeOrder.tableId} Order`}
               </p>
-              <p className="text-xs text-porcelain/70 mt-0.5">
-                {activeOrder.isPaid ? (
+              <p className="text-xs text-porcelain/90 mt-0.5">
+                {activeOrder.status === 'cancelled' ? (
+                  <span className="font-bold flex items-center gap-1 text-porcelain">
+                    <AlertTriangle className="w-3.5 h-3.5 text-porcelain shrink-0" />
+                    <span>STATUS: CANCELLED BY KITCHEN STAFF</span> &middot; Please check with staff or place a new order
+                  </span>
+                ) : activeOrder.isPaid ? (
                   <>
                     Status: <span className="uppercase text-herb font-bold">ORDER COMPLETE & PAID ✓</span> &middot; Official Receipt Shared
                   </>
@@ -435,66 +566,77 @@ export default function CustomerMenu() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={async () => {
-                if (activeOrder.tableId) {
-                  const isComplete = activeOrder.status === 'served' || activeOrder.status === 'billed'
-                  try {
-                    const inv = await api<InvoiceData>(`/api/bills/table/${activeOrder.tableId}`)
-                    setActiveCustomerInvoice({
-                      ...inv,
-                      isComplete: inv.isComplete ?? isComplete,
-                      isPaid: activeOrder.isPaid || inv.isPaid || false,
-                    })
-                  } catch {
-                    setActiveCustomerInvoice({
-                      invoiceNumber: `INV-00${activeOrder.tableId}-LIVE`,
-                      tableId: activeOrder.tableId,
-                      orderType: activeOrder.orderType,
-                      pickupCode: activeOrder.pickupCode,
-                      subtotal: 700,
-                      tax: 35,
-                      serviceCharge: 35,
-                      total: 770,
-                      isComplete,
-                      isPaid: activeOrder.isPaid || false,
-                      itemizedList: [
-                        { name: 'Paneer Tikka Masala', qty: 1, price: 320, total: 320 },
-                        { name: 'Butter Chicken', qty: 1, price: 380, total: 380 },
-                      ],
-                    })
-                  }
-                }
-              }}
-              className={`text-xs px-3 py-1.5 rounded font-bold uppercase transition-colors cursor-pointer border flex items-center gap-1.5 ${
-                activeOrder.isPaid
-                  ? 'bg-herb/20 border-herb text-herb hover:bg-herb hover:text-porcelain'
-                  : activeOrder.status === 'served' || activeOrder.status === 'billed'
-                  ? 'bg-herb border-herb text-porcelain hover:bg-herb/90 animate-pulse shadow-md'
-                  : 'bg-saffron/20 border-saffron text-saffron hover:bg-saffron hover:text-ink'
-              }`}
-            >
-              {activeOrder.isPaid ? (
-                <>
-                  <FileText className="w-3.5 h-3.5" /> View & Share Receipt
-                </>
-              ) : activeOrder.status === 'served' || activeOrder.status === 'billed' ? (
-                <>
-                  <CreditCard className="w-3.5 h-3.5" /> Pay & Receive Receipt
-                </>
-              ) : (
-                <>
-                  <FileText className="w-3.5 h-3.5" /> View Receipt
-                </>
-              )}
-            </button>
+            {activeOrder.status === 'cancelled' ? (
+              <button
+                onClick={() => setActiveOrder(null)}
+                className="text-xs px-3.5 py-1.5 rounded font-bold uppercase bg-white text-brick hover:bg-porcelain transition-colors cursor-pointer shadow-sm"
+              >
+                Dismiss & Reorder
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={async () => {
+                    if (activeOrder.tableId) {
+                      const isComplete = activeOrder.status === 'served' || activeOrder.status === 'billed'
+                      try {
+                        const inv = await api<InvoiceData>(`/api/bills/table/${activeOrder.tableId}`)
+                        setActiveCustomerInvoice({
+                          ...inv,
+                          isComplete: inv.isComplete ?? isComplete,
+                          isPaid: activeOrder.isPaid || inv.isPaid || false,
+                        })
+                      } catch {
+                        setActiveCustomerInvoice({
+                          invoiceNumber: `INV-00${activeOrder.tableId}-LIVE`,
+                          tableId: activeOrder.tableId,
+                          orderType: activeOrder.orderType,
+                          pickupCode: activeOrder.pickupCode,
+                          subtotal: 700,
+                          tax: 35,
+                          serviceCharge: 35,
+                          total: 770,
+                          isComplete,
+                          isPaid: activeOrder.isPaid || false,
+                          itemizedList: [
+                            { name: 'Paneer Tikka Masala', qty: 1, price: 320, total: 320 },
+                            { name: 'Butter Chicken', qty: 1, price: 380, total: 380 },
+                          ],
+                        })
+                      }
+                    }
+                  }}
+                  className={`text-xs px-3 py-1.5 rounded font-bold uppercase transition-colors cursor-pointer border flex items-center gap-1.5 ${
+                    activeOrder.isPaid
+                      ? 'bg-herb/20 border-herb text-herb hover:bg-herb hover:text-porcelain'
+                      : activeOrder.status === 'served' || activeOrder.status === 'billed'
+                      ? 'bg-herb border-herb text-porcelain hover:bg-herb/90 animate-pulse shadow-md'
+                      : 'bg-saffron/20 border-saffron text-saffron hover:bg-saffron hover:text-ink'
+                  }`}
+                >
+                  {activeOrder.isPaid ? (
+                    <>
+                      <FileText className="w-3.5 h-3.5" /> View & Share Receipt
+                    </>
+                  ) : activeOrder.status === 'served' || activeOrder.status === 'billed' ? (
+                    <>
+                      <CreditCard className="w-3.5 h-3.5" /> Pay & Receive Receipt
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5" /> View Receipt
+                    </>
+                  )}
+                </button>
 
-            <button
-              onClick={() => setActiveOrder(null)}
-              className="text-xs text-porcelain/40 hover:text-porcelain transition-colors uppercase tracking-wider"
-            >
-              Dismiss
-            </button>
+                <button
+                  onClick={() => setActiveOrder(null)}
+                  className="text-xs text-porcelain/40 hover:text-porcelain transition-colors uppercase tracking-wider"
+                >
+                  Dismiss
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -783,6 +925,73 @@ export default function CustomerMenu() {
             setActiveCustomerInvoice((prev) => (prev ? { ...prev, isPaid: true } : null))
           }}
         />
+      )}
+
+      {/* Customer Details Popup Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-ink/10 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-saffron/15 text-saffron-deep flex items-center justify-center shrink-0">
+                <Utensils className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-wider text-steel">Welcome to Tandem</p>
+                <h3 className="font-display text-2xl font-bold text-ink leading-tight">Enter Your Details</h3>
+              </div>
+            </div>
+
+            <p className="text-xs text-steel mb-6">
+              Please enter your name and mobile number to personalize your order and receive digital receipts.
+            </p>
+
+            <form onSubmit={handleSaveCustomerInfo} className="space-y-4">
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1 font-semibold flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-steel" /> Customer Name
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full border border-ink/15 rounded-lg px-3.5 py-2.5 text-sm bg-porcelain text-ink focus:outline-none focus:border-saffron transition-colors"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1 font-semibold flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-steel" /> Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="e.g. +91 98765 43210"
+                  className="w-full border border-ink/15 rounded-lg px-3.5 py-2.5 text-sm bg-porcelain text-ink focus:outline-none focus:border-saffron transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomerModal(false)}
+                  className="flex-1 py-3 px-4 rounded-xl border border-ink/15 text-ink font-mono text-xs uppercase tracking-wide hover:bg-porcelain transition-colors cursor-pointer"
+                >
+                  Skip for now
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-4 rounded-xl bg-ink text-porcelain font-mono text-xs uppercase tracking-wide hover:bg-steel-dark transition-colors cursor-pointer font-bold shadow-md"
+                >
+                  Save & Continue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -109,11 +109,10 @@ export default function TicketRail() {
   const fetchTickets = async () => {
     try {
       const data = await api<any[]>('/api/orders?status=new,firing,ready')
-      setTickets(data)
+      setTickets(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to fetch tickets:', err)
-      const { tickets: mockTickets } = await import('@/data/mock')
-      setTickets(mockTickets)
+      setTickets([])
     } finally {
       setLoading(false)
     }

@@ -381,7 +381,9 @@ router.delete('/:id', verifyToken, requireRole('staff', 'admin'), async (req: Re
       status: t.status,
     }));
     io.emit('tables:updated', mappedTables);
-    io.emit('ticket:deleted', { id: targetId, _id: orderIdStr });
+    const cancelPayload = { id: targetId, _id: orderIdStr, tableId: order.tableId, pickupCode: order.pickupCode, orderType: order.orderType };
+    io.emit('ticket:deleted', cancelPayload);
+    io.emit('ticket:cancelled', cancelPayload);
     io.emit('bill:updated', null);
     await recalculateKitchenLoad();
 
