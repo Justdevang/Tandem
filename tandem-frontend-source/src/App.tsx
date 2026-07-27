@@ -86,14 +86,7 @@ function NavigationBar({ currentPath, onNavigate }: { currentPath: string; onNav
               Sign out
             </button>
           </>
-        ) : (
-          <button
-            onClick={() => onNavigate('/login')}
-            className="font-mono text-[10px] uppercase tracking-wide bg-saffron/20 text-saffron border border-saffron/40 px-2 py-1 rounded hover:bg-saffron hover:text-ink transition-colors cursor-pointer"
-          >
-            Sign In
-          </button>
-        )}
+        ) : null}
       </div>
     </div>
   )
@@ -149,7 +142,6 @@ function AppContent() {
     } else {
       return (
         <div className="h-screen w-full flex flex-col font-sans">
-          <NavigationBar currentPath={currentPath} onNavigate={navigate} />
           <div className="flex-1 min-h-0">
             <AuthScreen />
           </div>
@@ -160,7 +152,7 @@ function AppContent() {
 
   return (
     <div className="h-screen w-full flex flex-col font-sans">
-      {currentPath !== '/menu' && (
+      {currentPath.startsWith('/staff') && (
         <NavigationBar currentPath={currentPath} onNavigate={navigate} />
       )}
       <div className="flex-1 min-h-0 overflow-y-auto">
