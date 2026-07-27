@@ -101,16 +101,26 @@ function NavigationBar({ currentPath, onNavigate }: { currentPath: string; onNav
 
 function AppContent() {
   const { user, userRole, loading } = useAuth()
-  const [currentPath, setCurrentPath] = useState<string>(() => {
+  const getResolvedPath = (): string => {
+    if (typeof window === 'undefined') return '/menu'
+    const hash = window.location.hash.replace('#', '').trim()
+    if (hash.startsWith('/')) return hash
+    if (hash === 'login' || hash === 'staff' || hash === 'menu') return `/${hash}`
     return window.location.pathname || '/menu'
-  })
+  }
+
+  const [currentPath, setCurrentPath] = useState<string>(getResolvedPath)
 
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname || '/menu')
+      setCurrentPath(getResolvedPath())
     }
     window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
+    window.addEventListener('hashchange', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener('hashchange', handlePopState)
+    }
   }, [])
 
   const navigate = (path: RoutePath) => {

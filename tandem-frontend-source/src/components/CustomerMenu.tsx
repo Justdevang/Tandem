@@ -483,6 +483,20 @@ export default function CustomerMenu() {
                   {customerName ? `${customerName}${customerPhone ? ` (${customerPhone})` : ''}` : 'Enter Details'}
                 </span>
               </button>
+
+              {/* Staff Portal Link Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.history.pushState({}, '', '/login')
+                  window.dispatchEvent(new Event('popstate'))
+                }}
+                className="font-mono text-xs bg-ink/5 hover:bg-ink hover:text-porcelain border border-ink/15 px-3 py-1 rounded text-ink flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                title="Staff Portal Sign In"
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span className="font-semibold">Staff Login</span>
+              </button>
             </div>
           </div>
 
