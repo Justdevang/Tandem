@@ -3,7 +3,7 @@ import { signUpWithEmail, signInWithEmail, signInWithGoogle } from '@/lib/auth'
 
 type AuthMode = 'login' | 'register'
 
-export default function AuthScreen() {
+export default function AuthScreen({ onGuestLogin }: { onGuestLogin?: () => void }) {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -185,6 +185,16 @@ export default function AuthScreen() {
             </svg>
             Continue with Google
           </button>
+
+          {onGuestLogin && (
+            <button
+              type="button"
+              onClick={onGuestLogin}
+              className="w-full mt-3 bg-saffron/15 text-saffron font-semibold border border-saffron/40 py-2.5 rounded-sm font-mono text-xs uppercase tracking-wide hover:bg-saffron hover:text-ink transition-colors"
+            >
+              ⚡ Explore Demo App (Guest Mode)
+            </button>
+          )}
         </div>
 
         <p className="text-center font-mono text-[10px] text-steel mt-6 tracking-wide">
