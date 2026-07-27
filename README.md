@@ -6,8 +6,16 @@
 
 ## Live Demo & Deployment
 
-* **Hosted Web Application:** [https://tandem-frontend-wzka.onrender.com](https://tandem-frontend-wzka.onrender.com)
-* **Team Name:** Tandem
+* **Hosted Web Application (Customer) :** [https://tandem-frontend-wzka.onrender.com](https://tandem-frontend-wzka.onrender.com)
+* **Hosted Web Application (staff or Admin) :** [https://tandem-frontend-wzka.onrender.com/#/login](https://tandem-frontend-wzka.onrender.com/#/login)
+* **Team Name:** Conclusion
+
+## Demo Credentials (Staff Access)
+
+* **Email:** `staff@tandem.app`
+* **Password:** `staff123`
+
+*(These credentials grant instant access to the Staff Dashboard for testing and live evaluation.)*
 
 ---
 
@@ -83,15 +91,6 @@ Google Gemini API (`@google/generative-ai`) is integrated into two primary capab
 * **`AnalyticsPanel.tsx`**: Performance charts, 7-day revenue trend bar chart, top-selling items ranking, and key operational metrics.
 * **`ChatAssistant.tsx`**: Gemini AI interactive chat interface for customer dish recommendations and cart ordering.
 * **`StaffDashboard.tsx`**: Tabbed staff hub containing kitchen load controls, live queue score badge, and manager Rush Mode toggle.
-
----
-
-## Demo Credentials (Staff Access)
-
-* **Email:** `staff@tandem.app`
-* **Password:** `staff123`
-
-*(These credentials grant instant access to the Staff Dashboard for testing and live evaluation.)*
 
 ---
 
