@@ -7,7 +7,6 @@
 ## Live Demo
 
 * **Web App:** [Placeholder for Live Demo Link]
-* **Demo Video:** [Placeholder for Walkthrough Video Link]
 
 ---
 
