@@ -30,10 +30,9 @@ export async function setDemoSpike(active: boolean): Promise<KitchenLoadState> {
   return await computeKitchenLoad();
 }
 
-export async function computeKitchenLoad(): Promise<KitchenLoadState> {
-  // Query active tickets in 'new' and 'firing' states ONLY
-  // Served, ready, and billed orders have finished prep and must NOT count towards kitchen load
-  const activeOrders = await Order.find({ status: { $in: ['new', 'firing'] } });
+export async function computeKitchenLoad(existingItems?: any[]): Promise<KitchenLoadState> {
+  // Query active tickets in 'new' and 'firing' states ONLY (lean query for performance)
+  const activeOrders = await Order.find({ status: { $in: ['new', 'firing'] } }).lean();
   const activeTicketCount = activeOrders.length;
 
   if (demoSpikeActive) {
@@ -72,9 +71,14 @@ export async function computeKitchenLoad(): Promise<KitchenLoadState> {
     return state;
   }
 
-  // Fetch all menu items for prep time lookup
-  const menuItems = await MenuItem.find();
-  const prepMap = new Map(menuItems.map((m) => [m._id.toString(), m.avgPrepMinutes || 10]));
+  // Use pre-fetched items if provided, or fetch minimal lean items
+  const menuItems = existingItems || (await MenuItem.find({}, '_id avgPrepMinutes').lean());
+  const prepMap = new Map(
+    menuItems.map((m: any) => [
+      (m._id || m.id).toString(),
+      typeof m.avgPrepMinutes === 'number' ? m.avgPrepMinutes : 10,
+    ])
+  );
 
   let totalPrepMinutes = 0;
   for (const order of activeOrders) {

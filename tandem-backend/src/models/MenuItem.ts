@@ -37,4 +37,7 @@ menuItemSchema.virtual('isAvailable').get(function (this: IMenuItem) {
   return this.stockQty > 0;
 });
 
+menuItemSchema.index({ category: 1, name: 1 });
+menuItemSchema.index({ name: 1 });
+
 export const MenuItem = mongoose.model<IMenuItem>('MenuItem', menuItemSchema);

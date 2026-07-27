@@ -11,14 +11,15 @@ const router = Router();
  */
 async function autoSeedCatalog() {
   try {
-    for (const item of catalogMenuItems) {
-      await MenuItem.findOneAndUpdate(
-        { name: item.name },
-        { $setOnInsert: item },
-        { upsert: true, new: true }
-      );
-    }
-    console.log('🌱 Auto-seeded full menu catalog into database.');
+    const ops = catalogMenuItems.map((item) => ({
+      updateOne: {
+        filter: { name: item.name },
+        update: { $setOnInsert: item },
+        upsert: true,
+      },
+    }));
+    await MenuItem.bulkWrite(ops);
+    console.log('🌱 Auto-seeded full menu catalog into database via bulkWrite.');
   } catch (err) {
     console.error('Failed to auto-seed menu catalog:', err);
   }
@@ -32,12 +33,12 @@ async function autoSeedCatalog() {
 router.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
     let items = await MenuItem.find().sort({ category: 1, name: 1 });
-    if (items.length < 20) {
+    if (items.length === 0) {
       await autoSeedCatalog();
       items = await MenuItem.find().sort({ category: 1, name: 1 });
     }
 
-    const loadState = await computeKitchenLoad();
+    const loadState = await computeKitchenLoad(items);
 
     const itemsWithThrottling = items.map((item) => {
       const obj = item.toObject({ virtuals: true });

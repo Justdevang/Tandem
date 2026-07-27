@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { Flame } from 'lucide-react'
 import TicketRail from '@/components/TicketRail'
-import TablesFloor from '@/components/TablesFloor'
-import InventoryPanel from '@/components/InventoryPanel'
-import AnalyticsPanel from '@/components/AnalyticsPanel'
-import BillingHistoryPanel from '@/components/BillingHistoryPanel'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
+
+const TablesFloor = lazy(() => import('@/components/TablesFloor'))
+const InventoryPanel = lazy(() => import('@/components/InventoryPanel'))
+const AnalyticsPanel = lazy(() => import('@/components/AnalyticsPanel'))
+const BillingHistoryPanel = lazy(() => import('@/components/BillingHistoryPanel'))
 
 const tabs = [
   { key: 'tickets', label: 'Tickets' },
@@ -111,11 +112,13 @@ export default function StaffDashboard() {
       </header>
 
       <main className="px-6 md:px-12 py-8 max-w-7xl mx-auto">
-        {tab === 'tickets' && <TicketRail />}
-        {tab === 'tables' && <TablesFloor />}
-        {tab === 'billing' && <BillingHistoryPanel />}
-        {tab === 'inventory' && <InventoryPanel />}
-        {tab === 'analytics' && <AnalyticsPanel />}
+        <Suspense fallback={<div className="flex justify-center py-12 font-mono text-xs text-porcelain/50 animate-pulse">Loading panel...</div>}>
+          {tab === 'tickets' && <TicketRail />}
+          {tab === 'tables' && <TablesFloor />}
+          {tab === 'billing' && <BillingHistoryPanel />}
+          {tab === 'inventory' && <InventoryPanel />}
+          {tab === 'analytics' && <AnalyticsPanel />}
+        </Suspense>
       </main>
     </div>
   )

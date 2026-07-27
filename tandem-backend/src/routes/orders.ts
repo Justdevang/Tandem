@@ -280,8 +280,8 @@ router.patch('/:id/status', verifyToken, requireRole('staff', 'admin'), async (r
     }
 
     if (!order) {
-      const allOrders = await Order.find();
-      order = allOrders.find(
+      const activeOrders = await Order.find({ status: { $in: ['new', 'firing', 'ready', 'served'] } });
+      order = activeOrders.find(
         (o) =>
           orderToTicket(o).id.toUpperCase() === targetId.toUpperCase() ||
           o._id.toString() === targetId

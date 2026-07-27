@@ -7,9 +7,9 @@ const router = Router();
 
 /**
  * GET /api/tables
- * List all tables with status.
+ * List all tables with status (public for customer table selection and staff floor overview).
  */
-router.get('/', verifyToken, requireRole('staff', 'admin'), async (_req: Request, res: Response): Promise<void> => {
+router.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
     const tables = await Table.find().sort({ number: 1 });
     // Map to match frontend's Table type: { id, capacity, status }
