@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
+import { Sparkles, Search } from 'lucide-react'
 import { type MenuItem } from '@/data/mock'
 import { api } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
@@ -16,6 +17,12 @@ export default function InventoryPanel() {
   const [forecasts, setForecasts] = useState<ForecastItem[]>([])
   const [loading, setLoading] = useState(true)
   const [forecastLoading, setForecastLoading] = useState(false)
+
+  // Filter & Sort State
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'low' | 'out'>('all')
+  const [sortBy, setSortBy] = useState<'stock-asc' | 'stock-desc' | 'name-asc' | 'name-desc' | 'reorder-desc'>('stock-asc')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,7 +45,7 @@ export default function InventoryPanel() {
       setMenuItems(data)
     })
     socket.on('menu:updated', (data: any[]) => {
-      setMenuItems([...data].sort((a, b) => a.stockQty - b.stockQty))
+      setMenuItems(data)
     })
 
     return () => {
@@ -75,7 +82,49 @@ export default function InventoryPanel() {
     return item.stockQty > 0
   }
 
-  const sorted = [...menuItems].sort((a, b) => a.stockQty - b.stockQty)
+  // Unique categories
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    menuItems.forEach((m) => {
+      if (m.category) set.add(m.category)
+    })
+    return ['all', ...Array.from(set)]
+  }, [menuItems])
+
+  // Filtered and sorted inventory items
+  const filteredAndSorted = useMemo(() => {
+    return menuItems
+      .filter((item) => {
+        // Search query filter
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase()
+          const nameMatch = item.name.toLowerCase().includes(q)
+          const catMatch = item.category?.toLowerCase().includes(q)
+          if (!nameMatch && !catMatch) return false
+        }
+
+        // Category filter
+        if (categoryFilter !== 'all' && item.category !== categoryFilter) {
+          return false
+        }
+
+        // Status filter
+        const available = isAvailable(item)
+        const low = available && item.stockQty <= item.reorderThreshold
+        if (statusFilter === 'out' && available) return false
+        if (statusFilter === 'low' && !low && available) return false
+
+        return true
+      })
+      .sort((a, b) => {
+        if (sortBy === 'stock-asc') return a.stockQty - b.stockQty
+        if (sortBy === 'stock-desc') return b.stockQty - a.stockQty
+        if (sortBy === 'name-asc') return a.name.localeCompare(b.name)
+        if (sortBy === 'name-desc') return b.name.localeCompare(a.name)
+        if (sortBy === 'reorder-desc') return b.reorderThreshold - a.reorderThreshold
+        return 0
+      })
+  }, [menuItems, searchQuery, categoryFilter, statusFilter, sortBy])
 
   if (loading) {
     return (
@@ -86,95 +135,211 @@ export default function InventoryPanel() {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-      {/* Stock list */}
-      <div>
-        <h3 className="font-mono text-xs tracking-[0.2em] uppercase text-porcelain/60 mb-4">Stock levels</h3>
-        <ul className="space-y-3">
-          {sorted.map((item) => {
-            const pct = Math.min(100, (item.stockQty / (item.reorderThreshold * 3)) * 100)
-            const critical = !isAvailable(item)
-            const low = !critical && item.stockQty <= item.reorderThreshold
-            return (
-              <li key={item._id || item.id} className="bg-steel-dark border border-steel-line rounded-md px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-porcelain text-sm font-medium">{item.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`font-mono text-xs ${
-                        critical ? 'text-brick' : low ? 'text-saffron' : 'text-porcelain/50'
-                      }`}
-                    >
-                      {item.stockQty} in stock
-                    </span>
-                    <button
-                      onClick={() => restock(item._id || item.id, item.reorderThreshold)}
-                      className="font-mono text-[10px] uppercase tracking-wide border border-herb/40 text-herb px-2 py-0.5 rounded-sm hover:bg-herb hover:text-porcelain transition-colors"
-                    >
-                      +Restock
-                    </button>
-                  </div>
-                </div>
-                <div className="h-1.5 rounded-full bg-porcelain/10 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      critical ? 'bg-brick' : low ? 'bg-saffron' : 'bg-herb'
-                    }`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+    <div className="space-y-6 font-mono">
+      {/* Header & AI Forecast Generator Row */}
+      <div className="flex items-center justify-between border-b border-steel-line pb-4 flex-wrap gap-4">
+        <div>
+          <h3 className="text-xs tracking-[0.2em] uppercase text-porcelain/60">Inventory & Stock Levels</h3>
+          <p className="text-xs text-porcelain/40 mt-0.5">Real-time stock quantities & reorder thresholds</p>
+        </div>
 
-      {/* AI forecast panel */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-mono text-xs tracking-[0.2em] uppercase text-porcelain/60">
-            Reorder suggestions &middot; AI
-          </h3>
+        <div className="flex items-center gap-3">
           <button
             onClick={fetchForecasts}
             disabled={forecastLoading}
-            className="font-mono text-[10px] uppercase tracking-wide border border-saffron/40 text-saffron px-2 py-0.5 rounded-sm hover:bg-saffron hover:text-ink transition-colors disabled:opacity-50"
+            className="text-xs uppercase tracking-wide border border-saffron/40 text-saffron px-3 py-1.5 rounded transition-all hover:bg-saffron hover:text-ink cursor-pointer disabled:opacity-50 font-semibold flex items-center gap-1.5 shadow-sm"
           >
-            {forecastLoading ? 'Analyzing...' : 'Generate'}
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{forecastLoading ? 'Analyzing...' : 'AI Reorder Forecast'}</span>
           </button>
         </div>
-        <div className="space-y-3">
-          {forecasts.length === 0 && !forecastLoading && (
-            <p className="font-mono text-[11px] text-porcelain/30 leading-relaxed">
-              Click "Generate" to get AI-powered reorder suggestions based on order history & stock velocity.
-            </p>
-          )}
-          {forecasts.map((f) => (
-            <div key={f.itemId} className="border border-saffron/30 bg-saffron/[0.07] rounded-md px-4 py-3">
-              <p className="text-porcelain text-sm font-medium">{f.itemName}</p>
-              <p className="font-mono text-xs text-porcelain/50 mt-1">
-                predicted demand: {f.predictedDemand} units ({f.window})
-              </p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="font-mono text-xs text-saffron">
-                  reorder {f.suggestedReorderQty} units
-                </span>
-                <button
-                  onClick={() => restock(f.itemId, f.suggestedReorderQty)}
-                  className="font-mono text-[11px] uppercase tracking-wide border border-saffron/50 text-saffron px-2.5 py-1 rounded-sm hover:bg-saffron hover:text-ink transition-colors"
-                >
-                  Approve
-                </button>
-              </div>
-            </div>
-          ))}
-          {forecasts.length > 0 && (
-            <p className="font-mono text-[11px] text-porcelain/30 leading-relaxed pt-1">
-              generated from order history &amp; current stock velocity
-            </p>
-          )}
+      </div>
+
+      {/* Filter Toolbar & Search Controls */}
+      <div className="bg-paper/10 border border-porcelain/10 rounded-xl p-4 flex items-center justify-between gap-4 flex-wrap text-xs">
+        <div className="flex items-center gap-3 flex-wrap flex-1">
+          {/* Search Box */}
+          <div className="relative min-w-[200px] flex-1 max-w-xs">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search dish or category..."
+              className="w-full bg-ink/50 border border-porcelain/20 rounded pl-8 pr-7 py-1.5 text-porcelain focus:outline-none focus:border-saffron text-xs placeholder:text-porcelain/40"
+            />
+            <Search className="w-3.5 h-3.5 text-porcelain/40 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-porcelain/40 hover:text-porcelain text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Category Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-porcelain/50 text-[11px]">Category:</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-ink/50 border border-porcelain/20 rounded px-2.5 py-1.5 text-porcelain text-xs focus:outline-none focus:border-saffron capitalize cursor-pointer"
+            >
+              {categories.map((c) => (
+                <option key={c} value={c} className="bg-ink text-porcelain capitalize">
+                  {c === 'all' ? 'All Categories' : c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-porcelain/50 text-[11px]">Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="bg-ink/50 border border-porcelain/20 rounded px-2.5 py-1.5 text-porcelain text-xs focus:outline-none focus:border-saffron cursor-pointer"
+            >
+              <option value="all" className="bg-ink text-porcelain">All Stock Levels</option>
+              <option value="low" className="bg-ink text-saffron">Low Stock Only</option>
+              <option value="out" className="bg-ink text-brick">Out of Stock (86'd)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Sort Controls */}
+        <div className="flex items-center gap-2">
+          <span className="text-porcelain/50 text-[11px]">Sort By:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="bg-ink/50 border border-saffron/40 text-saffron font-semibold rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-saffron cursor-pointer"
+          >
+            <option value="stock-asc" className="bg-ink text-porcelain">Lowest Stock First ↑</option>
+            <option value="stock-desc" className="bg-ink text-porcelain">Highest Stock First ↓</option>
+            <option value="name-asc" className="bg-ink text-porcelain">Name (A-Z)</option>
+            <option value="name-desc" className="bg-ink text-porcelain">Name (Z-A)</option>
+            <option value="reorder-desc" className="bg-ink text-porcelain">Reorder Threshold ↓</option>
+          </select>
+
+          <span className="text-porcelain/40 text-[11px] ml-2">
+            ({filteredAndSorted.length} items)
+          </span>
         </div>
       </div>
+
+      {/* AI Reorder Suggestions Alert Box (If Generated) */}
+      {forecasts.length > 0 && (
+        <div className="bg-saffron/10 border border-saffron/30 rounded-xl p-4 space-y-3 animate-in fade-in duration-300">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase text-saffron tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> AI Predictive Reorder Recommendations
+            </p>
+            <span className="text-[10px] text-porcelain/40">Based on sales velocity</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {forecasts.map((f) => (
+              <div key={f.itemId} className="bg-ink/40 border border-saffron/30 rounded-lg p-3 space-y-2">
+                <p className="text-porcelain text-xs font-semibold">{f.itemName}</p>
+                <p className="text-[11px] text-porcelain/60">Predicted demand: {f.predictedDemand} units</p>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs font-bold text-saffron">+{f.suggestedReorderQty} units</span>
+                  <button
+                    onClick={() => restock(f.itemId, f.suggestedReorderQty)}
+                    className="text-[10px] uppercase font-bold bg-saffron text-ink px-2 py-1 rounded hover:bg-saffron-deep transition-colors cursor-pointer"
+                  >
+                    Approve
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 5-Column Side-by-Side Stock Cards Grid */}
+      {filteredAndSorted.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-porcelain/20 rounded-xl text-porcelain/40 text-xs">
+          <Search className="w-6 h-6 mx-auto mb-2 text-porcelain/30" />
+          <p>No inventory items match your current filter criteria.</p>
+          <button
+            onClick={() => {
+              setSearchQuery('')
+              setCategoryFilter('all')
+              setStatusFilter('all')
+            }}
+            className="mt-3 text-saffron underline hover:text-saffron-deep cursor-pointer"
+          >
+            </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {filteredAndSorted.map((item) => {
+            const pct = Math.min(100, (item.stockQty / (item.reorderThreshold * 3)) * 100)
+            const critical = !isAvailable(item)
+            const low = !critical && item.stockQty <= item.reorderThreshold
+
+            return (
+              <div
+                key={item._id || item.id}
+                className={`bg-steel-dark border rounded-xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 hover:scale-[1.02] shadow-sm relative ${
+                  critical
+                    ? 'border-brick/50 bg-brick/5'
+                    : low
+                    ? 'border-saffron/50 bg-saffron/5'
+                    : 'border-steel-line'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <h4 className="text-porcelain text-sm font-semibold leading-snug line-clamp-1">{item.name}</h4>
+                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-porcelain/10 text-porcelain/60 shrink-0">
+                      {item.category}
+                    </span>
+                  </div>
+
+                  <div className="mt-2">
+                    <p className={`text-lg font-bold ${critical ? 'text-brick' : low ? 'text-saffron' : 'text-herb'}`}>
+                      {item.stockQty} <span className="text-xs font-normal text-porcelain/60">in stock</span>
+                    </p>
+                    <p className="text-[10px] text-porcelain/40 mt-0.5">
+                      Threshold: {item.reorderThreshold}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {/* Stock Progress Bar */}
+                  <div className="h-1.5 rounded-full bg-porcelain/10 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        critical ? 'bg-brick' : low ? 'bg-saffron' : 'bg-herb'
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+
+                  {/* Quick Restock Button */}
+                  <button
+                    onClick={() => restock(item._id || item.id, item.reorderThreshold * 2 || 10)}
+                    className={`w-full text-[10px] uppercase font-bold tracking-wider py-1.5 rounded transition-all cursor-pointer border ${
+                      critical
+                        ? 'bg-brick text-porcelain border-brick hover:bg-brick/90'
+                        : low
+                        ? 'bg-saffron/20 text-saffron border-saffron/40 hover:bg-saffron hover:text-ink'
+                        : 'border-herb/40 text-herb hover:bg-herb hover:text-porcelain'
+                    }`}
+                  >
+                    + Restock ({item.reorderThreshold * 2 || 10})
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

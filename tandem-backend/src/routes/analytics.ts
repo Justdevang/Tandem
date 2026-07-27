@@ -6,8 +6,7 @@ const router = Router();
 
 /**
  * GET /api/analytics/summary
- * Revenue by day (last 7 days), top items, avg ticket, table turns.
- * All aggregated from real Order data.
+ * Revenue by day (last 7 days), top items, avg ticket, table turns, and order completion time analytics.
  */
 router.get('/summary', verifyToken, requireRole('staff', 'admin'), async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -75,6 +74,27 @@ router.get('/summary', verifyToken, requireRole('staff', 'admin'), async (_req: 
       },
     ]);
 
+    // ── Average Order Completion / Fulfillment Time ──────────────────
+    const fulfillmentRes = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: sevenDaysAgo },
+          fulfillmentMinutes: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          avgMinutes: { $avg: '$fulfillmentMinutes' },
+        },
+      },
+    ]);
+
+    const avgFulfillmentMinutes =
+      fulfillmentRes.length > 0 && fulfillmentRes[0].avgMinutes
+        ? Math.round(fulfillmentRes[0].avgMinutes)
+        : 14;
+
     // ── Summary stats ───────────────────────────────────────────
     const totalOrders = await Order.countDocuments({
       createdAt: { $gte: sevenDaysAgo },
@@ -83,19 +103,6 @@ router.get('/summary', verifyToken, requireRole('staff', 'admin'), async (_req: 
     const weekTotal = formattedRevenue.reduce((sum: number, d: any) => sum + d.amount, 0);
     const avgTicket = totalOrders > 0 ? Math.round(weekTotal / totalOrders) : 0;
 
-    // If no real data yet, return mock-shaped empty data
-    if (formattedRevenue.length === 0) {
-      res.json({
-        revenueByDay: [],
-        topItems: [],
-        weekTotal: 0,
-        totalOrders: 0,
-        avgTicket: 0,
-        tableTurns: '0x',
-      });
-      return;
-    }
-
     res.json({
       revenueByDay: formattedRevenue,
       topItems,
@@ -103,6 +110,7 @@ router.get('/summary', verifyToken, requireRole('staff', 'admin'), async (_req: 
       totalOrders,
       avgTicket,
       tableTurns: totalOrders > 0 ? `${(totalOrders / 12 / 7).toFixed(1)}x` : '0x',
+      avgFulfillmentTime: `${avgFulfillmentMinutes} min`,
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);

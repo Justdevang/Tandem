@@ -6,6 +6,8 @@ export type MenuItem = {
   category: string
   stockQty: number
   reorderThreshold: number
+  avgPrepMinutes?: number
+  currentlyThrottled?: boolean
 }
 
 export const menuItems: MenuItem[] = [

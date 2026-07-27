@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-export interface IForecast extends Document {
+export interface IForecast extends Omit<Document, 'model'> {
   menuItemId: Types.ObjectId;
   predictedDemand: number;
   suggestedReorderQty: number;

@@ -7,18 +7,21 @@ let socket: Socket | null = null;
 export function getSocket(): Socket {
   if (!socket) {
     socket = io(BACKEND_URL, {
+      transports: ['websocket', 'polling'],
       autoConnect: true,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 15,
+      randomizationFactor: 0.5,
     });
 
     socket.on('connect', () => {
-      console.log('🔌 Socket connected:', socket?.id);
+      console.log('Socket connected:', socket?.id);
     });
 
     socket.on('disconnect', () => {
-      console.log('🔌 Socket disconnected');
+      console.log('Socket disconnected');
     });
 
     socket.on('connect_error', (err) => {
