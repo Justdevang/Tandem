@@ -26,7 +26,6 @@ export default function StaffDashboard() {
     activeTicketCount: number
     isManualBusy: boolean
   }>({ loadScore: 15, loadLevel: 'Low', activeTicketCount: 0, isManualBusy: false })
-  const [demoSpikeActive, setDemoSpikeActive] = useState(false)
 
   useEffect(() => {
     api<any>('/api/kitchen/load').then((res) => {
@@ -56,20 +55,6 @@ export default function StaffDashboard() {
     }
   }
 
-  const toggleDemoSpike = async () => {
-    const nextState = !demoSpikeActive
-    setDemoSpikeActive(nextState)
-    try {
-      const res = await api<any>('/api/kitchen/load/demo-spike', {
-        method: 'POST',
-        body: JSON.stringify({ active: nextState }),
-      })
-      if (res) setKitchenLoad(res)
-    } catch (err) {
-      console.error('Failed to toggle demo spike:', err)
-    }
-  }
-
   return (
     <div className="min-h-full bg-ink text-porcelain">
       <header className="border-b border-steel-line px-6 md:px-12 pt-8 pb-5">
@@ -80,7 +65,7 @@ export default function StaffDashboard() {
               <h1 className="font-display text-3xl md:text-4xl font-medium tracking-tight mt-1">Tandem Staff</h1>
             </div>
 
-            {/* Kitchen Load Controls & Demo Spike Simulator */}
+            {/* Kitchen Load Controls */}
             <div className="flex items-center gap-3 flex-wrap">
               {/* Live Load Badge */}
               <div className="font-mono text-xs bg-porcelain/5 border border-porcelain/15 px-3 py-1.5 rounded flex items-center gap-2">
@@ -104,20 +89,6 @@ export default function StaffDashboard() {
               >
                 <Flame className="w-3.5 h-3.5" />
                 <span>Rush Mode: {kitchenLoad.isManualBusy ? 'ON (Forced)' : 'AUTO'}</span>
-              </button>
-
-              {/* Demo Rush Spike Button */}
-              <button
-                onClick={toggleDemoSpike}
-                title="Simulate high ticket load spike for live demo"
-                className={`font-mono text-xs px-3 py-1.5 rounded transition-all cursor-pointer border font-semibold uppercase tracking-wide flex items-center gap-1.5 ${
-                  demoSpikeActive
-                    ? 'bg-saffron text-ink border-saffron shadow-md animate-pulse'
-                    : 'bg-saffron/20 text-saffron border-saffron/40 hover:bg-saffron hover:text-ink'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>{demoSpikeActive ? 'Clear Demo Spike' : 'Simulate Rush Spike'}</span>
               </button>
             </div>
           </div>
