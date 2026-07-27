@@ -9,7 +9,15 @@ const columns: { key: TicketStatus; label: string }[] = [
   { key: 'ready', label: 'Ready' },
 ]
 
-function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string; orderType?: string; pickupCode?: string; etaMinutes?: number; displayLabel?: string }; onAdvance: (id: string, status: string) => void }) {
+function TicketCard({
+  ticket,
+  onAdvance,
+  onDelete,
+}: {
+  ticket: Ticket & { _id?: string; orderType?: string; pickupCode?: string; etaMinutes?: number; displayLabel?: string }
+  onAdvance: (id: string, status: string) => void
+  onDelete: (id: string) => void
+}) {
   const urgent = ticket.elapsedMin >= 12 && ticket.status !== 'ready'
   const nextStatus: Record<string, string> = { new: 'firing', firing: 'ready', ready: 'served' }
   const nextLabel: Record<string, string> = { new: '→ Fire', firing: '→ Ready', ready: '→ Served' }
@@ -28,7 +36,19 @@ function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string; or
     >
       <div className="flex items-start justify-between border-b border-dashed border-ink/25 pb-2 mb-2">
         <div>
-          <p className="tracking-wider text-[15px] font-semibold">{ticket.id}</p>
+          <div className="flex items-center gap-2">
+            <p className="tracking-wider text-[15px] font-semibold">{ticket.id}</p>
+            <button
+              onClick={() => onDelete(ticketTargetId)}
+              title="Delete Ticket"
+              className="text-brick/60 hover:text-brick hover:bg-brick/10 p-0.5 rounded transition-colors cursor-pointer"
+              aria-label="Delete ticket"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
           <p className={isTakeaway ? 'text-saffron-deep font-semibold text-xs' : 'text-steel'}>
             {labelText}
           </p>
@@ -60,15 +80,24 @@ function TicketCard({ ticket, onAdvance }: { ticket: Ticket & { _id?: string; or
             ))}
         </div>
       )}
-      {/* Advance button */}
-      {nextStatus[ticket.status] && (
+      {/* Action Buttons */}
+      <div className="mt-3 flex gap-2">
+        {nextStatus[ticket.status] && (
+          <button
+            onClick={() => onAdvance(ticketTargetId, nextStatus[ticket.status])}
+            className="flex-1 border border-saffron/50 text-saffron font-mono text-[11px] uppercase tracking-wide px-2.5 py-1.5 rounded-sm hover:bg-saffron hover:text-ink transition-colors cursor-pointer"
+          >
+            {nextLabel[ticket.status]}
+          </button>
+        )}
         <button
-          onClick={() => onAdvance(ticketTargetId, nextStatus[ticket.status])}
-          className="mt-3 w-full border border-saffron/50 text-saffron font-mono text-[11px] uppercase tracking-wide px-2.5 py-1.5 rounded-sm hover:bg-saffron hover:text-ink transition-colors cursor-pointer"
+          onClick={() => onDelete(ticketTargetId)}
+          title="Delete Ticket"
+          className="border border-brick/40 text-brick font-mono text-[11px] uppercase tracking-wide px-2.5 py-1.5 rounded-sm hover:bg-brick hover:text-porcelain transition-colors cursor-pointer"
         >
-          {nextLabel[ticket.status]}
+          Cancel
         </button>
-      )}
+      </div>
     </div>
   )
 }
@@ -119,9 +148,14 @@ export default function TicketRail() {
       })
     })
 
+    socket.on('ticket:deleted', (data: any) => {
+      setTickets((prev) => prev.filter((t) => (t._id || t.id) !== (data._id || data.id)))
+    })
+
     return () => {
       socket.off('ticket:new')
       socket.off('ticket:updated')
+      socket.off('ticket:deleted')
     }
   }, [])
 
@@ -144,6 +178,19 @@ export default function TicketRail() {
       })
     } catch (err) {
       console.error('Failed to advance ticket:', err)
+      fetchTickets()
+    }
+  }
+
+  const deleteTicket = async (id: string) => {
+    setTickets((prev) => prev.filter((t) => (t._id || t.id) !== id))
+
+    try {
+      await api(`/api/orders/${id}`, {
+        method: 'DELETE',
+      })
+    } catch (err) {
+      console.error('Failed to delete ticket:', err)
       fetchTickets()
     }
   }
@@ -171,7 +218,7 @@ export default function TicketRail() {
                 <p className="font-mono text-xs text-porcelain/30 px-1">No tickets</p>
               )}
               {items.map((t) => (
-                <TicketCard key={t._id || t.id} ticket={t} onAdvance={advanceTicket} />
+                <TicketCard key={t._id || t.id} ticket={t} onAdvance={advanceTicket} onDelete={deleteTicket} />
               ))}
             </div>
           </div>

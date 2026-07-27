@@ -12,10 +12,13 @@ export interface IOrder extends Document {
   orderType: 'dine-in' | 'takeaway';
   pickupCode?: string;
   customerId?: Types.ObjectId;
+  sessionId?: string;
   items: IOrderItem[];
   status: 'new' | 'firing' | 'ready' | 'served' | 'billed';
   estimatedReadyAt?: Date;
   etaMinutes?: number;
+  completedAt?: Date;
+  fulfillmentMinutes?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +43,7 @@ const orderSchema = new Schema<IOrder>(
     },
     pickupCode: { type: String },
     customerId: { type: Schema.Types.ObjectId, ref: 'User' },
+    sessionId: { type: String },
     items: { type: [orderItemSchema], required: true },
     status: {
       type: String,
@@ -48,6 +52,8 @@ const orderSchema = new Schema<IOrder>(
     },
     estimatedReadyAt: { type: Date },
     etaMinutes: { type: Number },
+    completedAt: { type: Date },
+    fulfillmentMinutes: { type: Number },
   },
   { timestamps: true }
 );

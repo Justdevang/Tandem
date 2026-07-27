@@ -20,20 +20,20 @@ const menuItems = [
   { name: 'Masala Chai', description: 'Assam CTC, ginger, clove, star anise', price: 60, category: 'Beverages', stockQty: 50, reorderThreshold: 20, avgPrepMinutes: 3 },
 ];
 
-// ── Tables from mock.ts ─────────────────────────────────────────────
+// ── Tables ─────────────────────────────────────────────────────────
 const tables = [
-  { number: 1, capacity: 2, status: 'billing' as const },
-  { number: 2, capacity: 4, status: 'occupied' as const },
+  { number: 1, capacity: 2, status: 'free' as const },
+  { number: 2, capacity: 4, status: 'free' as const },
   { number: 3, capacity: 4, status: 'free' as const },
-  { number: 4, capacity: 6, status: 'occupied' as const },
+  { number: 4, capacity: 6, status: 'free' as const },
   { number: 5, capacity: 2, status: 'free' as const },
   { number: 6, capacity: 4, status: 'free' as const },
-  { number: 7, capacity: 4, status: 'occupied' as const },
+  { number: 7, capacity: 4, status: 'free' as const },
   { number: 8, capacity: 8, status: 'free' as const },
-  { number: 9, capacity: 6, status: 'occupied' as const },
+  { number: 9, capacity: 6, status: 'free' as const },
   { number: 10, capacity: 2, status: 'free' as const },
   { number: 11, capacity: 4, status: 'free' as const },
-  { number: 12, capacity: 2, status: 'billing' as const },
+  { number: 12, capacity: 2, status: 'free' as const },
 ];
 
 async function seed() {

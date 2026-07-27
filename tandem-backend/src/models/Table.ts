@@ -4,6 +4,7 @@ export interface ITable extends Document {
   number: number;
   capacity: number;
   status: 'free' | 'occupied' | 'billing';
+  currentSessionId?: string;
 }
 
 const tableSchema = new Schema<ITable>(
@@ -15,6 +16,7 @@ const tableSchema = new Schema<ITable>(
       enum: ['free', 'occupied', 'billing'],
       default: 'free',
     },
+    currentSessionId: { type: String },
   },
   { timestamps: true }
 );

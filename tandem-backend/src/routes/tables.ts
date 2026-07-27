@@ -31,7 +31,9 @@ router.get('/', verifyToken, requireRole('staff', 'admin'), async (_req: Request
  */
 router.patch('/:id/status', verifyToken, requireRole('staff', 'admin'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const tableNumber = parseInt(req.params.id);
+    const idParam = req.params.id;
+    const idStr = Array.isArray(idParam) ? idParam[0] : idParam;
+    const tableNumber = parseInt(idStr, 10);
     const { status } = req.body;
 
     if (!['free', 'occupied', 'billing'].includes(status)) {

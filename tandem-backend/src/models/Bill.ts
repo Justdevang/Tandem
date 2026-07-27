@@ -6,6 +6,7 @@ export interface IBill extends Document {
   tax: number;
   status: 'unpaid' | 'paid';
   method?: string;
+  sessionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +22,7 @@ const billSchema = new Schema<IBill>(
       default: 'unpaid',
     },
     method: { type: String },
+    sessionId: { type: String },
   },
   { timestamps: true }
 );
