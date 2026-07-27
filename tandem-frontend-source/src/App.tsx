@@ -90,7 +90,7 @@ function AppContent() {
   }
 
   if (!user && !isGuest) {
-    return <AuthScreen onGuestLogin={() => setIsGuest(true)} />
+    return <AuthScreen />
   }
 
   return (

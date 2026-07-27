@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Flame, Zap } from 'lucide-react'
+import { Flame } from 'lucide-react'
 import TicketRail from '@/components/TicketRail'
 import TablesFloor from '@/components/TablesFloor'
 import InventoryPanel from '@/components/InventoryPanel'

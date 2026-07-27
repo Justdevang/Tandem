@@ -3,7 +3,7 @@ import { signUpWithEmail, signInWithEmail, signInWithGoogle } from '@/lib/auth'
 
 type AuthMode = 'login' | 'register'
 
-export default function AuthScreen({ onGuestLogin }: { onGuestLogin?: () => void }) {
+export default function AuthScreen() {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
