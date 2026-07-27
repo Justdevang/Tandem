@@ -22,7 +22,7 @@ services:
     name: tandem-frontend
     env: static
     rootDir: tandem-frontend-source
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --no-frozen-lockfile && npm run build
     staticPublishPath: ./dist
     autoDeploy: true
     envVars:
