@@ -43,6 +43,15 @@ io.on('connection', (socket) => {
 });
 
 // ── Health check ───────────────────────────────────────────────────
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'Tandem Backend API',
+    status: 'online',
+    health: '/api/health',
+    timestamp: new Date().toISOString(),
+  })
+})
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
