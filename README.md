@@ -1,73 +1,129 @@
-# Tandem — Restaurant OS
+# Tandem - Real-Time Smart Restaurant Management SaaS
 
-> A restaurant management SaaS where inventory, live menu availability, kitchen order tickets, and billing form one connected real-time system. When stock drops to zero, the item is automatically marked unavailable everywhere — customer menu, kitchen display, dashboard — via WebSocket push.
+> A real-time restaurant management platform connecting customer ordering, live kitchen load awareness, session-isolated table billing, inventory, and AI demand forecasting. Built for **VibeAthon 6.0**.
 
-## Team
-**Team Name:** Tandem  
-**Hackathon:** VibeAthon 6.0
+---
 
-## Tech Stack
+## Live Demo
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19, Vite, TypeScript, Tailwind CSS, Radix UI |
-| **Backend** | Node.js, Express, Socket.IO |
-| **Database** | MongoDB Atlas (Mongoose ODM) |
-| **Auth** | Firebase Auth (email/password, Google OAuth) |
-| **AI** | Google Gemini API (2.0 Flash) |
-| **Deployment** | Vercel (frontend), Render (backend), MongoDB Atlas |
+* **Web App:** [Placeholder for Live Demo Link]
+* **Demo Video:** [Placeholder for Walkthrough Video Link]
+
+---
+
+## Problem
+
+Restaurant staff constantly struggle with disconnected operations during rush hours. Orders placed at busy tables get mixed with previous dining sessions, kitchen queues overflow without customer visibility, and inventory depletion causes silent dish outages. Traditional point of sale systems operate in silos, creating delay, billing confusion, and lost revenue during peak dining hours.
+
+---
+
+## Solution
+
+Tandem closes the loop with an end-to-end, real-time data chain connecting customer ordering directly to kitchen queue depth, table session isolation, stock deduction, and billing. When kitchen load spikes, higher-prep dishes are dynamically flagged to guide customer selection toward faster items. Table sessions isolate customer bills by dining session IDs, ensuring past orders never pollute new bills, while AI forecasting predicts stock velocity before items run out.
+
+---
 
 ## User Stories Completed
 
-### 🥉 Bronze — Core Functionality
-- [x] Customer-facing live menu with category filtering
-- [x] Staff dashboard with tabbed views (Tickets / Tables / Inventory / Analytics)
-- [x] Order placement from customer menu
-- [x] Kitchen ticket rail with kanban columns (New / Firing / Ready)
-- [x] User authentication (email/password + Google OAuth)
+- [x] **Bronze Tier (User Story 1)**: Customer Live Menu, Order Placement, Dine-in/Takeaway toggling, and Category Filtering.
+- [x] **Silver Tier (User Stories 1 to 3)**:
+  - Live KDS Kitchen Ticket Rail with real-time status transitions (New -> Firing -> Ready -> Served) and ticket deletion/cancellation.
+  - Interactive Table Floor Management with session-isolated billing and instant status updates.
+- [x] **Gold Tier (User Stories 1 to 4)**: Real-time Inventory & Stock Tracking with 5-column side-by-side grid, search box, category/status filters, and multi-criteria sorting.
+- [x] **Platinum Tier (User Stories 1 to 5)**: AI Demand Forecasting & AI Chatbot Assistant powered by Google Gemini for menu recommendations and predictive inventory reordering.
+- [x] **Bonus Features**:
+  - **Kitchen Load Awareness System**: Live 0-100 load scoring, automated dish prep warning badges, Manager Rush Mode toggle, and Demo Rush Spike simulator.
+  - **Session-Based Table Isolation**: Unique `sessionId` tracking per table dining session to prevent cross-session bill mixing.
+  - **Digital Itemized Invoice & Receipt Modal**: Shareable digital receipts with live payment confirmation.
+  - **1-Click Render Deployment**: Automated `render.yaml` Blueprint configuration for production hosting.
 
-### 🥈 Silver — Real-Time Connected System
-- [x] **The Core Chain:** Order → stock decrement → auto-86 → ticket creation — all via WebSocket push
-- [x] Real-time menu availability: items go 86'd the instant stock hits zero
-- [x] Real-time ticket updates: staff see new orders appear instantly
-- [x] Ticket status progression: New → Firing → Ready → Served
-- [x] Real-time table status tracking
+---
 
-### 🥇 Gold — Full Restaurant Operations
-- [x] Inventory management with stock levels and reorder thresholds
-- [x] Restocking flow: restock an 86'd item → it reappears on customer menu in real-time
-- [x] Billing system: generate bills from orders, mark as paid, free tables
-- [x] Analytics dashboard: revenue by day, top items, average ticket, table turns
-- [x] Role-based access control (customer / staff / admin)
+## Tech Stack
 
-### 🏆 Platinum — AI-Powered Features
-- [x] **Gemini demand forecasting:** Analyzes order history and stock velocity to predict demand and suggest reorder quantities
-- [x] **Gemini ordering assistant:** Menu-constrained chat that only recommends dishes currently available on the live menu
+* **Frontend:** React 19, TypeScript, Tailwind CSS, Lucide React Icons, Vite
+* **Backend:** Node.js, Express, TypeScript, Socket.IO, Mongoose
+* **Database & Auth:** MongoDB, Firebase Admin SDK / Authentication
+* **AI & Intelligence:** Google Gemini AI API (`@google/generative-ai`)
 
-### ⭐ Bonus
-- [x] Automatic table status management (occupied on order, billing on served, free on payment)
-- [x] Inventory logging with full audit trail (order decrements, restocks, adjustments)
+---
 
 ## AI Usage
 
-### Gemini Demand Forecasting
-The `GET /api/ai/forecast` endpoint reads `InventoryLog` history per menu item, calculates consumption velocity over the last 7 days, and sends this data to **Gemini 2.0 Flash** with a structured prompt requesting predicted demand and reorder quantities. Results are stored in a `Forecast` collection and displayed in the Inventory panel's "Reorder Suggestions · AI" section. Staff can one-click approve a suggestion to automatically restock.
+Google Gemini API is integrated for two distinct operational capabilities:
+1. **Predictive Inventory Reordering (`/api/ai/forecast`)**: Analyzes past order velocity and current stock levels to generate recommended reorder quantities per menu item.
+2. **Conversational Menu Assistant (`ChatAssistant.tsx`)**: Constrained AI assistant that answers customer dietary questions, recommends dishes based on live stock availability, and directly populates the customer cart upon user agreement.
 
-### Gemini Ordering Assistant
-The `POST /api/ai/assistant` endpoint passes the **live menu JSON** (with current availability) as context to Gemini, with strict instructions to only recommend dishes that are actually on the menu and in stock. This prevents the AI from inventing items. The assistant appears as a lightweight chat bubble on the customer menu screen.
+---
 
-**Both AI features include heuristic fallbacks** that work when no Gemini API key is configured, ensuring the app functions end-to-end regardless.
+## Team & Setup Instructions
 
-## Hosted Application
+**Team Name:** Tandem
 
-| Service | URL |
-|---------|-----|
-| **Frontend** | *deployed on Vercel — add URL* |
-| **Backend** | *deployed on Render — add URL* |
+### Prerequisites
+* Node.js (v18 or higher)
+* npm (v9 or higher)
+* MongoDB database instance (local or MongoDB Atlas)
 
-## GitHub Repository
-*Add your public GitHub repo URL here*
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Justdevang/Tandem.git
+cd Tandem
+```
 
-## Scalability — Multi-Tenancy
+### 2. Install Dependencies
+```bash
+# Install backend dependencies
+cd tandem-backend
+npm install
 
-Tandem can scale to multiple restaurant tenants by adding a `restaurantId` field to every MongoDB collection (MenuItem, Order, Table, InventoryLog, Bill, Forecast, User). Each query would filter by `restaurantId`, and the API routes would extract the tenant from the authenticated user's profile. This is a field-level change — no architectural redesign needed. Combined with MongoDB Atlas's built-in sharding and replica sets, this approach supports hundreds of restaurant tenants on the same infrastructure, with each tenant's data fully isolated.
+# Install frontend dependencies
+cd ../tandem-frontend-source
+npm install
+```
+
+### 3. Environment Setup
+
+Create `.env` in `tandem-backend/`:
+```env
+PORT=5001
+MONGODB_URI=mongodb://localhost:27017/tandem
+GEMINI_API_KEY=your_gemini_api_key_here
+CLIENT_URL=http://localhost:5173
+JWT_SECRET=your_jwt_secret_key
+```
+
+Create `.env` in `tandem-frontend-source/`:
+```env
+VITE_API_URL=http://localhost:5001
+```
+
+### 4. Seed Database & Run Locally
+```bash
+# Seed initial menu and table data (in tandem-backend)
+cd tandem-backend
+npm run seed
+
+# Start backend dev server (port 5001)
+npm run dev
+
+# In a new terminal, start frontend dev server (port 5173)
+cd tandem-frontend-source
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser to access the application.
+
+---
+
+## Screenshots
+
+| Customer Live Menu | Live KDS Ticket Rail | 5-Column Inventory |
+| --- | --- | --- |
+| ![Customer Menu](https://via.placeholder.com/600x350?text=Customer+Live+Menu) | ![Kitchen Ticket Rail](https://via.placeholder.com/600x350?text=KDS+Ticket+Rail) | ![Inventory Grid](https://via.placeholder.com/600x350?text=5-Column+Inventory) |
+
+---
+
+## What's Next
+
+Future enhancements include multi-branch chain analytics, automated supplier purchase order dispatch, and QR-code table self-checkout integration.
