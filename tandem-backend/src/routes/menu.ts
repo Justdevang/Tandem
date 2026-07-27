@@ -1,10 +1,28 @@
 import { Router, Request, Response } from 'express';
 import { MenuItem } from '../models/MenuItem.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
+import { computeKitchenLoad } from '../services/kitchenLoad.js';
+import { catalogMenuItems } from '../data/catalog.js';
 
 const router = Router();
 
-import { computeKitchenLoad } from '../services/kitchenLoad.js';
+/**
+ * Helper to auto-seed menu catalog if database is empty or partial
+ */
+async function autoSeedCatalog() {
+  try {
+    for (const item of catalogMenuItems) {
+      await MenuItem.findOneAndUpdate(
+        { name: item.name },
+        { $setOnInsert: item },
+        { upsert: true, new: true }
+      );
+    }
+    console.log('🌱 Auto-seeded full menu catalog into database.');
+  } catch (err) {
+    console.error('Failed to auto-seed menu catalog:', err);
+  }
+}
 
 /**
  * GET /api/menu
@@ -13,7 +31,12 @@ import { computeKitchenLoad } from '../services/kitchenLoad.js';
  */
 router.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const items = await MenuItem.find().sort({ category: 1, name: 1 });
+    let items = await MenuItem.find().sort({ category: 1, name: 1 });
+    if (items.length < 20) {
+      await autoSeedCatalog();
+      items = await MenuItem.find().sort({ category: 1, name: 1 });
+    }
+
     const loadState = await computeKitchenLoad();
 
     const itemsWithThrottling = items.map((item) => {
