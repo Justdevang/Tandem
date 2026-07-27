@@ -14,6 +14,8 @@ import inventoryRoutes from './routes/inventory.js';
 import billRoutes from './routes/bills.js';
 import analyticsRoutes from './routes/analytics.js';
 import aiRoutes from './routes/ai.js';
+import kitchenRoutes from './routes/kitchen.js';
+import { initKitchenLoadService } from './services/kitchenLoad.js';
 
 dotenv.config();
 
@@ -22,14 +24,16 @@ const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 // ── Express setup ──────────────────────────────────────────────────
 const app = express();
-app.use(cors({ origin: CLIENT_URL, credentials: true }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // ── HTTP + Socket.IO ───────────────────────────────────────────────
 const server = http.createServer(app);
 export const io = new SocketIOServer(server, {
-  cors: { origin: CLIENT_URL, credentials: true },
+  cors: { origin: true, credentials: true },
 });
+
+initKitchenLoadService(io);
 
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
@@ -52,6 +56,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/bills', billRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/kitchen', kitchenRoutes);
 
 // ── Start ──────────────────────────────────────────────────────────
 async function start() {

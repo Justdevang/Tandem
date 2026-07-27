@@ -4,8 +4,10 @@ import { Order } from '../models/Order.js';
 import { MenuItem } from '../models/MenuItem.js';
 import { InventoryLog } from '../models/InventoryLog.js';
 import { Table } from '../models/Table.js';
+import { Bill } from '../models/Bill.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
 import { io } from '../server.js';
+import { recalculateKitchenLoad } from '../services/kitchenLoad.js';
 
 const router = Router();
 
@@ -134,11 +136,37 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       pickupCode = String(Math.floor(1000 + Math.random() * 9000));
     }
 
+    // 0. Resolve or create active session ID for table/order
+    let sessionId: string | undefined = req.body.sessionId;
+
+    if (orderType === 'dine-in' && tableId) {
+      let table = await Table.findOne({ number: Number(tableId) });
+      if (!table) {
+        table = await Table.create({ number: Number(tableId), capacity: 4, status: 'free' });
+      }
+
+      if (!table.currentSessionId || table.status === 'free') {
+        sessionId = `sess_${Date.now()}_t${tableId}`;
+        table.currentSessionId = sessionId;
+        table.status = 'occupied';
+        await table.save();
+      } else {
+        sessionId = table.currentSessionId;
+        if (table.status !== 'occupied') {
+          table.status = 'occupied';
+          await table.save();
+        }
+      }
+    } else {
+      sessionId = `sess_${Date.now()}_takeaway_${pickupCode || Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
     // 1. Create Order
     const order = await Order.create({
       orderType,
       tableId: orderType === 'dine-in' ? Number(tableId) : undefined,
       pickupCode,
+      sessionId,
       items: orderItems,
       status: 'new',
       estimatedReadyAt,
@@ -165,10 +193,23 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    // 3. Mark table as occupied (only for dine-in orders)
-    if (orderType === 'dine-in' && tableId) {
-      await Table.findOneAndUpdate({ number: Number(tableId) }, { status: 'occupied' });
+    // 3. Auto-create Bill document
+    let orderSubtotal = 0;
+    for (const item of orderItems) {
+      const menuItem = await MenuItem.findById(item.menuItemId);
+      const unitPrice = menuItem ? menuItem.price : 200;
+      orderSubtotal += unitPrice * item.qty;
     }
+    const orderTax = Math.round(orderSubtotal * 0.05);
+    const orderTotal = orderSubtotal + orderTax + Math.round(orderSubtotal * 0.05);
+
+    const createdBill = await Bill.create({
+      orderIds: [order._id],
+      total: orderTotal,
+      tax: orderTax,
+      status: 'unpaid',
+      sessionId,
+    });
 
     // 4. Broadcast updated menu & inventory to all clients
     const updatedMenu = await MenuItem.find().sort({ category: 1, name: 1 });
@@ -177,11 +218,12 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     const updatedInventory = await MenuItem.find().sort({ stockQty: 1 });
     io.emit('inventory:updated', updatedInventory);
 
-    // 5. Broadcast ticket to staff kitchen display
+    // 5. Broadcast ticket & bill updates
     const ticket = orderToTicket(order);
     io.emit('ticket:new', ticket);
+    io.emit('bill:updated', createdBill);
 
-    // 6. Broadcast updated tables floor
+    // 6. Broadcast updated tables floor & recalculate kitchen load
     const updatedTables = await Table.find().sort({ number: 1 });
     const mappedTables = updatedTables.map((t) => ({
       id: t.number,
@@ -189,6 +231,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       status: t.status,
     }));
     io.emit('tables:updated', mappedTables);
+    await recalculateKitchenLoad();
 
     res.status(201).json({ order, ticket, etaMinutes: totalEtaMinutes, estimatedReadyAt, pickupCode });
   } catch (error) {
@@ -251,10 +294,21 @@ router.patch('/:id/status', verifyToken, requireRole('staff', 'admin'), async (r
     }
 
     order.status = status;
+
+    // Track order fulfillment completion time (in minutes)
+    if (['ready', 'served', 'billed'].includes(status) && !order.completedAt) {
+      const completedAt = new Date();
+      const createdAt = order.createdAt ? new Date(order.createdAt) : completedAt;
+      const fulfillmentMinutes = Math.max(1, Math.round((completedAt.getTime() - createdAt.getTime()) / 60000));
+      order.completedAt = completedAt;
+      order.fulfillmentMinutes = fulfillmentMinutes;
+    }
+
     await order.save();
 
     const ticket = orderToTicket(order);
     io.emit('ticket:updated', ticket);
+    await recalculateKitchenLoad();
 
     // If served, mark table as billing (only for dine-in orders with tableId)
     if (status === 'served' && order.orderType === 'dine-in' && order.tableId) {
@@ -272,6 +326,69 @@ router.patch('/:id/status', verifyToken, requireRole('staff', 'admin'), async (r
   } catch (error) {
     console.error('Error updating order status:', error);
     res.status(500).json({ error: 'Failed to update order status' });
+  }
+});
+
+/**
+ * DELETE /api/orders/:id
+ * Cancel / Delete an order ticket.
+ */
+router.delete('/:id', verifyToken, requireRole('staff', 'admin'), async (req: Request, res: Response): Promise<void> => {
+  try {
+    const targetId = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id || '');
+
+    let order = null;
+    if (mongoose.Types.ObjectId.isValid(targetId)) {
+      order = await Order.findById(targetId);
+    }
+
+    if (!order) {
+      const allOrders = await Order.find();
+      order = allOrders.find(
+        (o) =>
+          orderToTicket(o).id.toUpperCase() === targetId.toUpperCase() ||
+          o._id.toString() === targetId
+      );
+    }
+
+    if (!order) {
+      res.status(404).json({ error: `Order not found with ID: ${targetId}` });
+      return;
+    }
+
+    const orderIdStr = order._id.toString();
+    const tableId = order.tableId;
+
+    // Delete the order
+    await Order.findByIdAndDelete(order._id);
+
+    // Delete linked bill if exists
+    await Bill.deleteMany({ orderIds: order._id });
+
+    // Check if table has remaining active orders
+    if (tableId) {
+      const remainingTableOrders = await Order.find({ tableId, status: { $ne: 'billed' } });
+      if (remainingTableOrders.length === 0) {
+        await Table.findOneAndUpdate({ number: tableId }, { status: 'free' });
+      }
+    }
+
+    // Broadcast socket updates & recalculate kitchen load
+    const updatedTables = await Table.find().sort({ number: 1 });
+    const mappedTables = updatedTables.map((t) => ({
+      id: t.number,
+      capacity: t.capacity,
+      status: t.status,
+    }));
+    io.emit('tables:updated', mappedTables);
+    io.emit('ticket:deleted', { id: targetId, _id: orderIdStr });
+    io.emit('bill:updated', null);
+    await recalculateKitchenLoad();
+
+    res.json({ message: 'Order ticket deleted successfully', id: targetId, _id: orderIdStr });
+  } catch (error) {
+    console.error('Error deleting order ticket:', error);
+    res.status(500).json({ error: 'Failed to delete order ticket' });
   }
 });
 

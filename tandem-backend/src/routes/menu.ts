@@ -4,15 +4,29 @@ import { verifyToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
+import { computeKitchenLoad } from '../services/kitchenLoad.js';
+
 /**
  * GET /api/menu
- * List all menu items with isAvailable virtual.
+ * List all menu items with isAvailable virtual and currentlyThrottled flag.
  * Public — no auth required (customers need to see the menu).
  */
 router.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
     const items = await MenuItem.find().sort({ category: 1, name: 1 });
-    res.json(items);
+    const loadState = await computeKitchenLoad();
+
+    const itemsWithThrottling = items.map((item) => {
+      const obj = item.toObject({ virtuals: true });
+      const isThrottled =
+        loadState.loadLevel === 'High' && (item.avgPrepMinutes || 10) >= loadState.prepThresholdMinutes;
+      return {
+        ...obj,
+        currentlyThrottled: isThrottled,
+      };
+    });
+
+    res.json(itemsWithThrottling);
   } catch (error) {
     console.error('Error fetching menu:', error);
     res.status(500).json({ error: 'Failed to fetch menu' });
