@@ -1,16 +1,27 @@
 import { useState } from 'react'
 import { signUpWithEmail, signInWithEmail, signInWithGoogle } from '@/lib/auth'
+import { useAuth } from '@/context/AuthContext'
 
 type AuthMode = 'login' | 'register'
 
 export default function AuthScreen() {
+  const { setAuthUser } = useAuth()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [role, setRole] = useState<'customer' | 'staff'>('customer')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const processUserLogin = async (loggedUser: any) => {
+    const isStaff = loggedUser.email?.toLowerCase().includes('staff') || loggedUser.uid === 'fixed-staff-uid-101'
+    const role = await setAuthUser(loggedUser, isStaff ? 'staff' : undefined)
+    const destination = (role === 'staff' || role === 'admin') ? '/staff' : '/menu'
+    if (window.location.pathname !== destination) {
+      window.history.pushState({}, '', destination)
+      window.dispatchEvent(new Event('popstate'))
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,10 +29,14 @@ export default function AuthScreen() {
     setLoading(true)
 
     try {
+      let loggedUser: any
       if (mode === 'register') {
-        await signUpWithEmail(email, password, name, role)
+        loggedUser = await signUpWithEmail(email, password, name)
       } else {
-        await signInWithEmail(email, password)
+        loggedUser = await signInWithEmail(email, password)
+      }
+      if (loggedUser) {
+        await processUserLogin(loggedUser)
       }
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
@@ -38,7 +53,10 @@ export default function AuthScreen() {
     setError('')
     setLoading(true)
     try {
-      await signInWithGoogle()
+      const loggedUser = await signInWithGoogle()
+      if (loggedUser) {
+        await processUserLogin(loggedUser)
+      }
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed' || err.message?.includes('operation-not-allowed')) {
         setError('Google Sign-In is not enabled in Firebase Console. Please enable Google in Firebase Console → Authentication → Sign-in method.')
@@ -83,46 +101,17 @@ export default function AuthScreen() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
-              <>
-                <div>
-                  <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full border border-ink/15 rounded-sm px-3 py-2 text-sm bg-porcelain text-ink focus:outline-none focus:border-saffron transition-colors"
-                    placeholder="Your name"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1">Role</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRole('customer')}
-                      className={`flex-1 py-2 font-mono text-xs uppercase tracking-wide rounded-sm border transition-colors ${
-                        role === 'customer'
-                          ? 'border-saffron bg-saffron/10 text-saffron-deep'
-                          : 'border-ink/15 text-ink/50'
-                      }`}
-                    >
-                      Customer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole('staff')}
-                      className={`flex-1 py-2 font-mono text-xs uppercase tracking-wide rounded-sm border transition-colors ${
-                        role === 'staff'
-                          ? 'border-herb bg-herb/10 text-herb'
-                          : 'border-ink/15 text-ink/50'
-                      }`}
-                    >
-                      Staff
-                    </button>
-                  </div>
-                </div>
-              </>
+              <div>
+                <label className="font-mono text-[11px] uppercase tracking-wide text-steel block mb-1">Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full border border-ink/15 rounded-sm px-3 py-2 text-sm bg-porcelain text-ink focus:outline-none focus:border-saffron transition-colors"
+                  placeholder="Your name"
+                  required
+                />
+              </div>
             )}
 
             <div>

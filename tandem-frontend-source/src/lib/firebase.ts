@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 // Firebase config with safe fallback values to prevent blank page crash on Render
 const firebaseConfig = {
@@ -20,4 +21,5 @@ try {
 }
 
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 export default app;

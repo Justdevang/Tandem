@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if requesting user has role "staff" or "admin"
+    function isStaffOrAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['staff', 'admin'];
+    }
+
+    // Users collection:
+    // - Authenticated users can read their own document, or staff/admin can read any user document
+    // - Authenticated users can create their own document on signup
+    // - Only staff/admin can update roles or delete user documents
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isStaffOrAdmin());
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update, delete: if isStaffOrAdmin();
+    }
+
+    // Orders collection:
+    // Public read & public write (customers can create/view orders without authentication)
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    // Inventory collection:
+    // Public read (menu needs to show live availability)
+    // Write restricted to users with role "staff" or "admin"
+    match /inventory/{itemId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    // Staff-only collections:
+    // Restricted to users with role "staff" or "admin"
+    match /analytics/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /staff/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /bills/{docId} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
+    match /tables/{docId} {
+      allow read: if true;
+      allow write: if isStaffOrAdmin();
+    }
+
+    // Default fallback rule for any unspecified collection: staff/admin only
+    match /{document=**} {
+      allow read, write: if isStaffOrAdmin();
+    }
+  }
+}
